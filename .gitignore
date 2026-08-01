@@ -34,6 +34,7 @@ out/
 .env.*
 .env.local
 .env.production.local
+env/
 
 # TypeScript
 *.tsbuildinfo
