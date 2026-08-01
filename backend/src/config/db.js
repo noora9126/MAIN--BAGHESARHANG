@@ -1,20 +1,31 @@
 const mysql = require("mysql2");
+require("dotenv").config();
 
-const connection = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "baghsarhang_db",
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "baghsarhang_db",
+  waitForConnections: true,
+  connectionLimit: 10,
 });
 
-connection.connect((err) => {
+pool.query("SELECT 1", (err) => {
   if (err) {
-    console.log("❌ Database Error");
-    console.log(err);
+    console.error("❌ Database Error");
+    console.error(err);
     return;
   }
-
   console.log("✅ MySQL Connected");
 });
 
-module.exports = connection;
+// پکیج کردن query برای استفاده آسان با Promise
+const query = (sql, params = []) =>
+  new Promise((resolve, reject) => {
+    pool.query(sql, params, (err, results) => {
+      if (err) reject(err);
+      else resolve(results);
+    });
+  });
+
+module.exports = { pool, query };

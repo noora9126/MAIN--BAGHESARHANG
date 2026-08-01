@@ -55,3 +55,20 @@ CREATE TABLE otp_codes (
     expires_at DATETIME NOT NULL,
     used BOOLEAN DEFAULT FALSE
 );
+
+CREATE TABLE sms_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    phone VARCHAR(20) NOT NULL,
+    message LONGTEXT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    reservation_id INT,
+    status ENUM('SENT','FAILED','PENDING') DEFAULT 'PENDING',
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (reservation_id) REFERENCES bookings(id) ON DELETE SET NULL,
+    INDEX idx_phone (phone),
+    INDEX idx_type (type),
+    INDEX idx_status (status),
+    INDEX idx_created_at (created_at)
+);

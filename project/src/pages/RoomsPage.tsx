@@ -1,10 +1,31 @@
+import axios from "axios";
+import { useEffect, useState } from "react";
 import { Link } from 'react-router-dom';
 import { Home } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import RoomCard from '../components/RoomCard';
-import { rooms } from '../data/rooms';
 
-export default function RoomsPage() {
+
+
+  export default function RoomsPage() {
+      console.log("🔥 ROOMS PAGE IS RUNNING");
+
+  const [rooms, setRooms] = useState<any[]>([]);
+
+
+  useEffect(() => {
+    axios
+      .get("http://localhost:3000/api/rooms")
+      .then((res) => {
+        console.log("ROOM DATA:", res.data);
+        setRooms(res.data);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }, []);
+  console.log("PAGE LOADED");
+console.log("CURRENT ROOMS:", rooms);
   return (
     <div className="pt-20">
       {/* Header */}
@@ -26,9 +47,9 @@ export default function RoomsPage() {
             <span>/</span>
             <span className="text-white">اتاق‌ها</span>
           </nav>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white text-shadow-lg mb-4">
-            اتاق‌های هتل باغ سرهنگ
-          </h1>
+          <h1 className="text-3xl font-black text-white">
+  تست نورااااااا 🔥
+</h1>
           <p className="text-white/80 max-w-2xl mx-auto leading-relaxed">
             اتاق‌های متنوع و تمیز برای هر نوع سفر، از اقامت فردی تا خانوادگی
           </p>

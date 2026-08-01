@@ -118,6 +118,9 @@ export default function Footer() {
             <span>•</span>
             <span>ساعت خروج: {hotelInfo.checkOut}</span>
           </div>
+          <Link to="/admin" className="text-xs text-forest-600 hover:text-gold-400 transition-colors">
+            ورود مدیریت
+          </Link>
         </div>
       </div>
     </footer>
