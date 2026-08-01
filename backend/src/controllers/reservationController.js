@@ -12,7 +12,7 @@ const { generateOtpCode, dateOnlyString } = require("../utils/helpers");
 // ─────────────── ایجاد رزرو (مرحله 1) ───────────────
 const createReservation = async (req, res) => {
   try {
-    const { roomId, checkIn, checkOut, numberOfGuests, guestName, guestEmail, specialRequests } = req.booking;
+    const { roomId, checkIn, checkOut, numberOfGuests, guestName, guestEmail, nationalId, specialRequests } = req.booking;
 
     const room = await getRoomById(roomId);
     if (!room) {
@@ -23,6 +23,20 @@ const createReservation = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: `ظرفیت این اتاق حداکثر ${room.capacity} نفر است`,
+      });
+    }
+
+    // یکسان بودن کد ملی با نام ثبت‌شده قبلی این فرد
+    const prev = await query(
+      `SELECT guest_name FROM reservations
+       WHERE guest_national_id = ? AND guest_name <> ? AND status <> 'CANCELLED'
+       ORDER BY id DESC LIMIT 1`,
+      [nationalId, guestName]
+    );
+    if (prev[0]) {
+      return res.status(409).json({
+        success: false,
+        message: `کد ملی واردشده قبلاً با نام «${prev[0].guest_name}» ثبت شده است. در صورت اشتباه، نام خود را اصلاح کنید.`,
       });
     }
 
@@ -42,8 +56,9 @@ const createReservation = async (req, res) => {
       `INSERT INTO reservations
         (reservation_number, room_id, room_number, room_name, check_in, check_out,
          number_of_nights, number_of_guests, guest_name, guest_email, guest_phone,
-         special_requests, price_per_night, total_price, status, payment_status, sms_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', 'PENDING')`,
+         guest_national_id, special_requests, price_per_night, total_price,
+         status, payment_status, sms_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', 'PENDING')`,
       [
         reservationNumber,
         room.id,
@@ -56,6 +71,7 @@ const createReservation = async (req, res) => {
         guestName,
         guestEmail,
         "", // phone در مرحله تایید شماره تکمیل می‌شود
+        nationalId,
         specialRequests,
         pricePerNight,
         totalPrice,
@@ -77,6 +93,7 @@ const createReservation = async (req, res) => {
         number_of_guests: numberOfGuests,
         guest_name: guestName,
         guest_email: guestEmail,
+        guest_national_id: nationalId,
         price_per_night: pricePerNight,
         total_price: totalPrice,
         status: "PENDING",
@@ -107,20 +124,34 @@ const verifyPhone = async (req, res) => {
     );
 
     const result = await sendOtp(phone, code);
-    const devMode = result.simulated || !result.success;
+    const isProduction = process.env.NODE_ENV === "production";
+
+    // در پروداکشن کد هرگز در پاسخ برنگردد
+    if (!result.success) {
+      if (isProduction) {
+        return res.status(502).json({
+          success: false,
+          message: "ارسال پیامک ناموفق بود؛ کمی بعد دوباره تلاش کنید",
+        });
+      }
+      return res.json({
+        success: true,
+        message: "ارسال پیامک ناموفق بود؛ کد فقط برای تست برگردانده شد",
+        sessionId,
+        attempts: 0,
+        maxAttempts: 3,
+        ...{ devCode: code },
+      });
+    }
 
     res.json({
       success: true,
-      message: result.simulated
-        ? "کد تایید ارسال شد (حالت تستی)"
-        : result.success
-        ? "کد تایید ارسال شد"
-        : "ارسال پیامک ناموفق بود؛ کد فقط برای تست برگردانده شد",
+      message: result.simulated ? "کد تایید ارسال شد (حالت تستی)" : "کد تایید ارسال شد",
       sessionId,
       attempts: 0,
       maxAttempts: 3,
-      // فقط در حالت شبیه‌سازی یا عدم موفقیت ارسال (بدون SMS فعال) کد برگردانده می‌شود
-      ...(devMode ? { devCode: code } : {}),
+      // فقط در حالت شبیه‌سازی (و خارج از پروداکشن) کد برگردانده می‌شود
+      ...(result.simulated && !isProduction ? { devCode: code } : {}),
     });
   } catch (err) {
     console.error("verifyPhone error:", err);

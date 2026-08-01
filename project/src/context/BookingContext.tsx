@@ -10,6 +10,7 @@ export interface BookingState {
   nights: number;
   guestName: string;
   guestEmail: string;
+  nationalId: string;
   specialRequests: string;
   phone: string;
   phoneVerified: boolean;
@@ -22,6 +23,7 @@ const initial: BookingState = {
   nights: 0,
   guestName: '',
   guestEmail: '',
+  nationalId: '',
   specialRequests: '',
   phone: '',
   phoneVerified: false,

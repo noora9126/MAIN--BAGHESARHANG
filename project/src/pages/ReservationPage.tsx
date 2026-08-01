@@ -13,6 +13,7 @@ import {
   requestPayment, manualConfirmPayment, apiError, type Room,
 } from '../services/api';
 import { jalaliFriendly, formatToman, faNum, nightsBetween, todayStr, addDaysStr } from '../utils/dates';
+import { toEnDigits, toFaDigits, isValidNationalId, isValidPersianName, isValidEmail } from '../utils/validation';
 
 const STEPS = [
   { n: 1, label: 'انتخاب اتاق و تاریخ' },
@@ -20,6 +21,12 @@ const STEPS = [
   { n: 3, label: 'تأیید شماره' },
   { n: 4, label: 'پرداخت' },
 ];
+
+interface FieldErrors {
+  name?: string;
+  email?: string;
+  nationalId?: string;
+}
 
 function StepBar({ step }: { step: number }) {
   return (
@@ -70,6 +77,11 @@ export default function ReservationPage() {
   // ─────────── payment state ───────────
   const [payMode, setPayMode] = useState<'gateway' | 'manual' | null>(null);
 
+  // ─────────── field validation state ───────────
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const clearFieldError = (key: keyof FieldErrors) =>
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+
   useEffect(() => {
     getRooms()
       .then((r) => setRooms(r))
@@ -104,14 +116,23 @@ export default function ReservationPage() {
   };
 
   const submitGuestInfo = async () => {
-    if (!booking.guestName.trim() || booking.guestName.trim().length < 3) {
-      setError('نام و نام خانوادگی را کامل وارد کنید');
-      return;
+    const errors: FieldErrors = {};
+
+    if (!isValidPersianName(booking.guestName)) {
+      errors.name = 'نام و نام خانوادگی را کامل و به فارسی وارد کنید';
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(booking.guestEmail)) {
-      setError('ایمیل معتبر وارد کنید');
-      return;
+
+    if (!isValidEmail(booking.guestEmail)) {
+      errors.email = 'ایمیل معتبر وارد کنید';
     }
+
+    if (!isValidNationalId(booking.nationalId)) {
+      errors.nationalId = 'کد ملی معتبر وارد کنید (کد ملی ۱۰ رقمی خود را بررسی کنید)';
+    }
+
+    setFieldErrors(errors);
+    if (errors.name || errors.email || errors.nationalId) return;
+
     setError('');
     setBusy(true);
     try {
@@ -122,6 +143,7 @@ export default function ReservationPage() {
         numberOfGuests: booking.numberOfGuests,
         guestName: booking.guestName.trim(),
         guestEmail: booking.guestEmail.trim(),
+        nationalId: booking.nationalId.trim(),
         specialRequests: booking.specialRequests,
       });
       setBooking({ reservation, step: 3 });
@@ -370,10 +392,52 @@ export default function ReservationPage() {
                   <input
                     type="text"
                     value={booking.guestName}
-                    onChange={(e) => setBooking({ guestName: e.target.value })}
+                    onChange={(e) => {
+                      setBooking({ guestName: e.target.value });
+                      clearFieldError('name');
+                    }}
                     placeholder="مثال: محمد احمدی"
-                    className="w-full rounded-xl border border-forest-200 bg-forest-50/50 px-4 py-3 text-forest-800 outline-none focus:border-gold-400 focus:ring-2 focus:ring-gold-200"
+                    className={`w-full rounded-xl border bg-forest-50/50 px-4 py-3 text-forest-800 outline-none focus:ring-2 ${
+                      fieldErrors.name
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-forest-200 focus:border-gold-400 focus:ring-gold-200'
+                    }`}
                   />
+                  {fieldErrors.name && (
+                    <span className="mt-1.5 block text-xs text-red-600">{fieldErrors.name}</span>
+                  )}
+                </label>
+                <label className="block sm:col-span-1">
+                  <span className="mb-1.5 block text-sm font-medium text-forest-600">کد ملی *</span>
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={booking.nationalId}
+                    onChange={(e) => {
+                      setBooking({ nationalId: toEnDigits(e.target.value).replace(/[^\d]/g, '').slice(0, 10) });
+                      clearFieldError('nationalId');
+                    }}
+                    placeholder="کد ۱۰ رقمی"
+                    className={`w-full rounded-xl border bg-forest-50/50 px-4 py-3 text-forest-800 text-center tracking-widest font-bold outline-none focus:ring-2 ${
+                      fieldErrors.nationalId
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : booking.nationalId.length === 10
+                          ? isValidNationalId(booking.nationalId)
+                            ? 'border-emerald-500 focus:border-emerald-500 focus:ring-emerald-100'
+                            : 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                          : 'border-forest-200 focus:border-gold-400 focus:ring-gold-200'
+                    }`}
+                  />
+                  {booking.nationalId.length === 10 && isValidNationalId(booking.nationalId) && (
+                    <span className="mt-1.5 flex items-center gap-1 text-xs text-emerald-600">
+                      <CheckCircle2 size={13} /> کد ملی معتبر است
+                    </span>
+                  )}
+                  {fieldErrors.nationalId && (
+                    <span className="mt-1.5 block text-xs text-red-600">{fieldErrors.nationalId}</span>
+                  )}
                 </label>
                 <label className="block sm:col-span-1">
                   <span className="mb-1.5 block text-sm font-medium text-forest-600">ایمیل *</span>
@@ -381,10 +445,32 @@ export default function ReservationPage() {
                     type="email"
                     dir="ltr"
                     value={booking.guestEmail}
-                    onChange={(e) => setBooking({ guestEmail: e.target.value })}
+                    onChange={(e) => {
+                      setBooking({ guestEmail: e.target.value });
+                      clearFieldError('email');
+                    }}
                     placeholder="email@example.com"
-                    className="w-full rounded-xl border border-forest-200 bg-forest-50/50 px-4 py-3 text-forest-800 text-left outline-none focus:border-gold-400 focus:ring-2 focus:ring-gold-200"
+                    className={`w-full rounded-xl border bg-forest-50/50 px-4 py-3 text-forest-800 text-left outline-none focus:ring-2 ${
+                      fieldErrors.email
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+                        : 'border-forest-200 focus:border-gold-400 focus:ring-gold-200'
+                    }`}
                   />
+                  {fieldErrors.email && (
+                    <span className="mt-1.5 block text-xs text-red-600">{fieldErrors.email}</span>
+                  )}
+                </label>
+                <label className="block sm:col-span-1">
+                  <span className="mb-1.5 block text-sm font-medium text-forest-600">شماره موبایل *</span>
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    inputMode="numeric"
+                    disabled
+                    value={booking.phone ? toFaDigits(booking.phone) : 'در مرحله بعد تأیید می‌شود'}
+                    className="w-full cursor-not-allowed rounded-xl border border-forest-100 bg-forest-100/40 px-4 py-3 text-forest-600 text-left outline-none"
+                  />
+                  <span className="mt-1.5 block text-xs text-forest-400">شماره موبایل در مرحله بعد با کد تأیید اثبات می‌شود</span>
                 </label>
                 <label className="block sm:col-span-2">
                   <span className="mb-1.5 block text-sm font-medium text-forest-600">درخواست ویژه (اختیاری)</span>
@@ -501,6 +587,12 @@ export default function ReservationPage() {
                 <div className="flex justify-between"><span className="text-forest-500">تعداد شب</span><b className="text-forest-800">{faNum(nights)} شب</b></div>
                 <div className="flex justify-between"><span className="text-forest-500">مهمانان</span><b className="text-forest-800">{faNum(booking.numberOfGuests)} نفر</b></div>
                 <div className="flex justify-between"><span className="text-forest-500">نام مسافر</span><b className="text-forest-800">{booking.guestName}</b></div>
+                {booking.nationalId && (
+                  <div className="flex justify-between">
+                    <span className="text-forest-500">کد ملی</span>
+                    <b className="text-forest-800" dir="ltr">{toFaDigits(booking.nationalId)}</b>
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-forest-100 pt-3">
                   <span className="font-bold text-forest-600">مبلغ قابل پرداخت</span>
                   <b className="text-gold-600 text-lg">{formatToman(totalPrice)}</b>

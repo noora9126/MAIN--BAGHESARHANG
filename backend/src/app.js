@@ -9,9 +9,15 @@ const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
+const allowedOrigins = [process.env.FRONTEND_URL || "http://localhost:5173", "http://localhost:5174"];
+
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL || "http://localhost:5173", "http://localhost:5174"],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
+      callback(new Error("CORS: origin not allowed"));
+    },
     credentials: true,
   })
 );

@@ -28,6 +28,7 @@ const TABLES = [
     guest_name VARCHAR(100) NOT NULL,
     guest_email VARCHAR(100) NOT NULL,
     guest_phone VARCHAR(20) NOT NULL DEFAULT '',
+    guest_national_id VARCHAR(10) NULL,
     special_requests TEXT,
     price_per_night INT NOT NULL,
     total_price INT NOT NULL,
@@ -47,6 +48,7 @@ const TABLES = [
     INDEX idx_payment (payment_status),
     INDEX idx_guest_phone (guest_phone),
     INDEX idx_guest_email (guest_email),
+    INDEX idx_guest_national_id (guest_national_id),
     INDEX idx_check_in (check_in),
     INDEX idx_created (created_at)
   )`,
@@ -106,6 +108,8 @@ const TABLES = [
 const ALTERS = [
   "ALTER TABLE rooms ADD COLUMN room_number VARCHAR(20) NULL",
   "ALTER TABLE rooms ADD COLUMN type VARCHAR(50) NULL",
+  "ALTER TABLE reservations ADD COLUMN guest_national_id VARCHAR(10) NULL",
+  "ALTER TABLE reservations ADD INDEX idx_guest_national_id (guest_national_id)",
 ];
 
 async function run() {

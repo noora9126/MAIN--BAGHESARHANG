@@ -1,4 +1,12 @@
-const { isValidPhone, isValidEmail, parseDateOnly, nightsBetween } = require("../utils/helpers");
+const {
+  isValidPhone,
+  isValidEmail,
+  isValidNationalId,
+  isValidPersianName,
+  parseDateOnly,
+  nightsBetween,
+  toEnDigits,
+} = require("../utils/helpers");
 
 function badRequest(res, message) {
   return res.status(400).json({ success: false, message });
@@ -6,7 +14,7 @@ function badRequest(res, message) {
 
 // اعتبارسنجی فرم رزرو
 function validateReservationInput(req, res, next) {
-  const { roomId, checkIn, checkOut, numberOfGuests, guestName, guestEmail } = req.body || {};
+  const { roomId, checkIn, checkOut, numberOfGuests, guestName, guestEmail, nationalId } = req.body || {};
 
   if (!roomId || isNaN(Number(roomId))) {
     return badRequest(res, "شناسه اتاق نامعتبر است");
@@ -36,12 +44,19 @@ function validateReservationInput(req, res, next) {
     return badRequest(res, "تعداد مهمانان نامعتبر است");
   }
 
-  if (!guestName || String(guestName).trim().length < 3) {
-    return badRequest(res, "نام و نام خانوادگی الزامی است (حداقل 3 کاراکتر)");
+  // نام و نام خانوادگی: حداقل 2 کلمه، فقط حروف فارسی
+  if (!isValidPersianName(guestName)) {
+    return badRequest(res, "نام و نام خانوادگی را کامل و به فارسی وارد کنید (نام و نام خانوادگی)");
   }
 
   if (!isValidEmail(guestEmail)) {
     return badRequest(res, "ایمیل معتبر وارد کنید");
+  }
+
+  // کد ملی: الزامی و مطابق الگوریتم ثبت احوال
+  const normalizedNationalId = toEnDigits(nationalId).trim();
+  if (!isValidNationalId(normalizedNationalId)) {
+    return badRequest(res, "کد ملی معتبر وارد کنید (کد ملی ۱۰ رقمی خود را بررسی کنید)");
   }
 
   req.booking = {
@@ -51,7 +66,8 @@ function validateReservationInput(req, res, next) {
     numberOfNights: nights,
     numberOfGuests: Number(numberOfGuests),
     guestName: String(guestName).trim().slice(0, 100),
-    guestEmail: String(guestEmail).trim().slice(0, 100),
+    guestEmail: String(guestEmail).trim().toLowerCase().slice(0, 100),
+    nationalId: normalizedNationalId,
     specialRequests: String(req.body.specialRequests || "").slice(0, 1000),
   };
 

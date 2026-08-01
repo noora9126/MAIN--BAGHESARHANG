@@ -39,6 +39,7 @@ export interface Reservation {
   guest_name: string;
   guest_email: string;
   guest_phone: string;
+  guest_national_id?: string | null;
   special_requests?: string;
   price_per_night: number;
   total_price: number;
@@ -74,6 +75,7 @@ export async function createReservation(payload: {
   numberOfGuests: number;
   guestName: string;
   guestEmail: string;
+  nationalId: string;
   specialRequests?: string;
 }): Promise<{ reservation: Reservation }> {
   const { data } = await api.post('/api/reservations', payload);

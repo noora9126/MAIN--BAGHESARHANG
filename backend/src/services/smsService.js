@@ -1,38 +1,59 @@
-const MelipayamakApi = require("melipayamak-api");
+const axios = require("axios");
 const { query } = require("../config/db");
 const { formatPriceToman, jDate, toFaDigits } = require("../utils/helpers");
 
-let melipayamakApi = null;
-let smsService = null;
+// ─────────────── پیکربندی ملی‌پیامک ───────────────
+// روش اصلی: کنسول ملی‌پیامک (REST + Auth Token)
+//   POST https://console.melipayamak.com/api/send/simple/{token}
+//   body: { to, from, text }  →  پاسخ: { recId, status }
+// روش جایگزین: وب‌سرویس کلاسیک با Username/Password
+//   POST https://rest.payamak-panel.com/api/SendSMS/SendSMS
 
-function initMelipayamak() {
-  try {
-    const username = process.env.MELIPAYAMAK_USERNAME || "";
-    const password = process.env.MELIPAYAMAK_PASSWORD || "";
-    
-    if (!username || !password) {
-      return false;
-    }
-    
-    melipayamakApi = new MelipayamakApi(username, password);
-    smsService = melipayamakApi.sms();
-    return true;
-  } catch (err) {
-    console.error("خطا در راه‌اندازی ملی پیامک:", err.message);
-    return false;
-  }
+const CONSOLE_API_URL = "https://console.melipayamak.com/api/send/simple";
+const TIMEOUT_MS = 15000;
+
+let melipayamakApi = null; // نمونه کلاسیک (fallback)
+
+function apiToken() {
+  return (process.env.MELIPAYAMAK_API_TOKEN || "").trim();
+}
+
+function hasCredentials() {
+  return Boolean(
+    (process.env.MELIPAYAMAK_USERNAME || "").trim() &&
+      (process.env.MELIPAYAMAK_PASSWORD || "").trim()
+  );
 }
 
 function melipayamakSender() {
-  return process.env.MELIPAYAMAK_SENDER || "هتل_باغ_سرهنگ";
+  return (process.env.MELIPAYAMAK_SENDER || "").trim();
 }
 
-// در صورت موجود بودن Username و Password، ملی‌پیامک فعال می‌شود
+// شبیه‌سازی فقط زمانی فعال است که صریحاً با SMS_SIMULATE=1 خواسته شده باشد
+function simulateEnabled() {
+  return process.env.SMS_SIMULATE === "1";
+}
+
+// آیا ملی‌پیامک به‌درستی پیکربندی شده است؟
 function smsEnabled() {
-  if (melipayamakApi === null) {
-    return initMelipayamak();
+  if (simulateEnabled()) return false;
+  return Boolean(apiToken() || hasCredentials());
+}
+
+function initMelipayamakFallback() {
+  try {
+    if (melipayamakApi !== null) return true;
+    if (!hasCredentials()) return false;
+    const MelipayamakApi = require("melipayamak");
+    melipayamakApi = new MelipayamakApi(
+      process.env.MELIPAYAMAK_USERNAME.trim(),
+      process.env.MELIPAYAMAK_PASSWORD.trim()
+    ).sms("rest", "async");
+    return true;
+  } catch (err) {
+    console.error("خطا در راه‌اندازی سرویس کلاسیک ملی‌پیامک:", err.message);
+    return false;
   }
-  return melipayamakApi !== null;
 }
 
 async function logSms({ phone, message, type, reservationId = null, status = "SENT", errorMessage = null }) {
@@ -43,32 +64,101 @@ async function logSms({ phone, message, type, reservationId = null, status = "SE
   );
 }
 
+// ارسال از طریق کنسول ملی‌پیامک (Auth Token)
+async function sendViaConsole(phone, sender, message) {
+  const token = apiToken();
+  const body = { to: phone, text: message };
+  // اگر شماره ارسال‌کننده خالی باشد، خط پیش‌فرض اکانت استفاده می‌شود
+  if (sender) body.from = sender;
+  const { data } = await axios.post(
+    `${CONSOLE_API_URL}/${token}`,
+    body,
+    { timeout: TIMEOUT_MS }
+  );
+
+  const recId = data && data.recId;
+  const status = data && data.status;
+
+  if (recId && String(recId) !== "0") {
+    return { success: true, recId: String(recId) };
+  }
+  throw new Error(status || "پاسخ نامعتبر از کنسول ملی‌پیامک");
+}
+
+// ارسال از طریق وب‌سرویس کلاسیک (Username/Password) — حالت جایگزین
+async function sendViaClassic(phone, sender, message) {
+  if (!initMelipayamakFallback()) {
+    throw new Error("ملی‌پیامک پیکربندی نشده است");
+  }
+  const data = await melipayamakApi.send(phone, sender, message);
+
+  // پاسخ موفق وب‌سرویس کلاسیک: { Value, RetStatus: 1, StrRetStatus: "Ok" }
+  const ok =
+    data &&
+    (Number(data.RetStatus ?? data.retStatus) === 1 ||
+      String(data.StrRetStatus ?? data.strRetStatus ?? "").toLowerCase() === "ok");
+
+  if (ok) {
+    return { success: true, recId: String(data.Value ?? data.recId ?? "") };
+  }
+  const errCode = (data && (data.StrRetStatus ?? data.Error ?? data.error)) || "نامشخص";
+  throw new Error(`خطای ملی پیامک: ${errCode}`);
+}
+
+function errorMessage(err) {
+  return (
+    (err && err.response && err.response.data && (err.response.data.status || err.response.data.error)) ||
+    (err && err.message) ||
+    "خطای ناشناخته ملی پیامک"
+  );
+}
+
 async function sendSms(phone, message, { type = "CUSTOM", reservationId = null } = {}) {
-  // اگر ملی‌پیامک فعال نیست، شبیه‌سازی کنیم
-  if (!smsEnabled()) {
+  // حالت شبیه‌سازی (فقط برای توسعه/تست)
+  if (simulateEnabled()) {
     await logSms({ phone, message, type, reservationId, status: "SENT" });
     return { simulated: true, success: true };
   }
 
-  try {
-    const sender = melipayamakSender();
-    // متد send یک Promise برمی‌گرداند که RecId یا Error Number را بازمی‌دهد
-    const recId = await smsService.send(phone, sender, message);
-    
-    // بررسی پاسخ: RecId یک عدد مثبت است، 0 یا -1 خطا است
-    if (recId && parseInt(recId) > 0) {
-      await logSms({ phone, message, type, reservationId, status: "SENT" });
-      return { success: true, simulated: false, recId };
-    } else {
-      const errorMsg = `خطای ملی پیامک: کد ${recId}`;
-      throw new Error(errorMsg);
-    }
-  } catch (err) {
-    const msg = err.message || "خطای ناشناخته ملی پیامک";
+  // در پروداکشن باید اعتبارنامه وجود داشته باشد
+  if (!smsEnabled()) {
+    const msg = "ملی‌پیامک پیکربندی نشده است (توکن یا نام کاربری/رمز عبور را در .env تنظیم کنید)";
     console.error("خطا در ارسال پیامک به", phone, ":", msg);
     await logSms({ phone, message, type, reservationId, status: "FAILED", errorMessage: msg });
     return { success: false, simulated: false, error: msg };
   }
+
+  const sender = melipayamakSender();
+  const errors = {};
+
+  // روش اصلی: کنسول (Auth Token)
+  if (apiToken()) {
+    try {
+      const result = await sendViaConsole(phone, sender, message);
+      await logSms({ phone, message, type, reservationId, status: "SENT" });
+      return { success: true, simulated: false, ...result };
+    } catch (err) {
+      errors.console = errorMessage(err);
+      console.error("ارسال از طریق کنسول ملی‌پیامک ناموفق بود، تلاش با روش کلاسیک:", errors.console);
+    }
+  }
+
+  // روش جایگزین: وب‌سرویس کلاسیک (Username/Password)
+  if (hasCredentials()) {
+    try {
+      const result = await sendViaClassic(phone, sender, message);
+      await logSms({ phone, message, type, reservationId, status: "SENT" });
+      return { success: true, simulated: false, ...result };
+    } catch (err) {
+      errors.classic = errorMessage(err);
+      console.error("ارسال از طریق سرویس کلاسیک ملی‌پیامک ناموفق بود:", errors.classic);
+    }
+  }
+
+  const msg = errors.classic || errors.console || "خطای ناشناخته ملی پیامک";
+  console.error("خطا در ارسال پیامک به", phone, ":", msg);
+  await logSms({ phone, message, type, reservationId, status: "FAILED", errorMessage: msg });
+  return { success: false, simulated: false, error: msg };
 }
 
 // ---------- قالب‌های پیامک ----------
@@ -128,6 +218,7 @@ async function sendCheckOutSms({ phone, reservationNumber, reservationId }) {
 
 module.exports = {
   smsEnabled,
+  simulateEnabled,
   sendSms,
   sendOtp,
   sendReservationConfirmed,

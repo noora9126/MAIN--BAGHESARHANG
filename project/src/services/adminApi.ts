@@ -81,8 +81,10 @@ adminApi.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       clearToken();
-      if (window.location.pathname.startsWith('/admin') && !window.location.pathname.endsWith('/admin')) {
-        window.location.href = '/admin';
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+        // Only redirect if we're already in admin area
+        const isAdminRoot = window.location.pathname === '/admin' || window.location.pathname === '/admin/';
+        if (!isAdminRoot) window.location.href = '/admin/login';
       }
     }
     return Promise.reject(err);

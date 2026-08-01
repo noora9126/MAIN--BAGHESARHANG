@@ -3,16 +3,72 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 150 20% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 147 40% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 147 30% 94%;
+    --secondary-foreground: 147 40% 20%;
+    --muted: 147 25% 94%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 44 60% 92%;
+    --accent-foreground: 38 50% 25%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 147 20% 88%;
+    --input: 147 20% 88%;
+    --ring: 147 40% 30%;
+    --radius: 0.75rem;
+    --sidebar: 148 30% 97%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-accent: 147 30% 90%;
+    --sidebar-accent-foreground: 147 45% 20%;
+    --sidebar-border: 147 20% 88%;
+  }
+
+  .dark {
+    --background: 148 25% 8%;
+    --foreground: 210 20% 94%;
+    --card: 148 22% 11%;
+    --card-foreground: 210 20% 94%;
+    --popover: 148 22% 11%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 147 40% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 148 20% 16%;
+    --secondary-foreground: 210 20% 90%;
+    --muted: 148 18% 16%;
+    --muted-foreground: 215 14% 62%;
+    --accent: 38 40% 20%;
+    --accent-foreground: 44 60% 88%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 148 18% 18%;
+    --input: 148 18% 18%;
+    --ring: 147 40% 42%;
+    --sidebar: 148 24% 10%;
+    --sidebar-foreground: 210 20% 94%;
+    --sidebar-accent: 148 18% 16%;
+    --sidebar-accent-foreground: 147 40% 70%;
+    --sidebar-border: 148 18% 16%;
+  }
+
   * {
     -webkit-tap-highlight-color: transparent;
+    border-color: hsl(var(--border));
   }
   html {
     scroll-behavior: smooth;
   }
   body {
     font-family: 'Vazirmatn', sans-serif;
-    background-color: #f8faf9;
-    color: #1d3f2a;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     overflow-x: hidden;
   }
 }

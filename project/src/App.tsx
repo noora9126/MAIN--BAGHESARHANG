@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import ScrollToTop from './components/ScrollToTop';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -19,63 +20,69 @@ import SignupPage from './pages/SignupPage';
 import PaymentResultPage from './pages/PaymentResultPage';
 import { BookingProvider } from './context/BookingContext';
 
-import AdminLoginPage from './pages/admin/AdminLoginPage';
-import AdminLayout from './pages/admin/AdminLayout';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminReservations from './pages/admin/AdminReservations';
-import AdminGuests from './pages/admin/AdminGuests';
-import AdminAnalytics from './pages/admin/AdminAnalytics';
-import AdminRooms from './pages/admin/AdminRooms';
-import AdminSettings from './pages/admin/AdminSettings';
+import { queryClient } from '@/lib/queryClient';
+import { AuthProvider } from '@/features/auth/AuthProvider';
+import { RequireAdmin } from '@/features/auth/RequireAdmin';
+import { AdminRoutes } from '@/features/admin/AdminRoutes';
+import AdminLoginPage from '@/features/auth/LoginPage';
+import AdminLayout from '@/layouts/AdminLayout';
+import { Toaster } from '@/components/ui/sonner';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <ScrollToTop />
-      <BookingProvider>
-        <Routes>
-          {/* صفحات عمومی */}
-          <Route
-            path="*"
-            element={
-              <div className="min-h-screen flex flex-col">
-                <Header />
-                <main className="flex-1">
-                  <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/rooms" element={<RoomsPage />} />
-                    <Route path="/rooms/:slug" element={<RoomDetailPage />} />
-                    <Route path="/gallery" element={<GalleryPage />} />
-                    <Route path="/facilities" element={<FacilitiesPage />} />
-                    <Route path="/magazine" element={<MagazinePage />} />
-                    <Route path="/magazine/:slug" element={<ArticleDetailPage />} />
-                    <Route path="/about" element={<AboutPage />} />
-                    <Route path="/contact" element={<ContactPage />} />
-                    <Route path="/rules" element={<RulesPage />} />
-                    <Route path="/reserve" element={<ReservationPage />} />
-                    <Route path="/payment/result" element={<PaymentResultPage />} />
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/signup" element={<SignupPage />} />
-                  </Routes>
-                </main>
-                <Footer />
-                <FloatingCall />
-              </div>
-            }
-          />
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ScrollToTop />
+        <BookingProvider>
+          <AuthProvider>
+            <Routes>
+            {/* صفحات عمومی */}
+            <Route
+              path="*"
+              element={
+                <div className="min-h-screen flex flex-col">
+                  <Header />
+                  <main className="flex-1">
+                    <Routes>
+                      <Route path="/" element={<HomePage />} />
+                      <Route path="/rooms" element={<RoomsPage />} />
+                      <Route path="/rooms/:slug" element={<RoomDetailPage />} />
+                      <Route path="/gallery" element={<GalleryPage />} />
+                      <Route path="/facilities" element={<FacilitiesPage />} />
+                      <Route path="/magazine" element={<MagazinePage />} />
+                      <Route path="/magazine/:slug" element={<ArticleDetailPage />} />
+                      <Route path="/about" element={<AboutPage />} />
+                      <Route path="/contact" element={<ContactPage />} />
+                      <Route path="/rules" element={<RulesPage />} />
+                      <Route path="/reserve" element={<ReservationPage />} />
+                      <Route path="/payment/result" element={<PaymentResultPage />} />
+                      <Route path="/login" element={<LoginPage />} />
+                      <Route path="/signup" element={<SignupPage />} />
+                    </Routes>
+                  </main>
+                  <Footer />
+                  <FloatingCall />
+                </div>
+              }
+            />
 
-          {/* پنل مدیریت */}
-          <Route path="/admin" element={<AdminLoginPage />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="reservations" element={<AdminReservations />} />
-            <Route path="guests" element={<AdminGuests />} />
-            <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="rooms" element={<AdminRooms />} />
-            <Route path="settings" element={<AdminSettings />} />
-          </Route>
-        </Routes>
-      </BookingProvider>
-    </BrowserRouter>
+            {/* پنل مدیریت */}
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route
+              path="/admin"
+              element={
+                <RequireAdmin>
+                  <AdminLayout />
+                </RequireAdmin>
+              }
+            >
+              {AdminRoutes()}
+            </Route>
+            </Routes>
+            <Toaster />
+          </AuthProvider>
+        </BookingProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

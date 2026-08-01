@@ -80,12 +80,23 @@ async function verifyPayment({ authority, amount }) {
   return { success: true, code: data.code, refId: data.ref_id, message: data.message };
 }
 
-// ذخیره‌سازی تنظیمات زرین‌پال از پنل مدیریت
+// نگاشت تنظیمات ذخیره‌شده در دیتابیس به متغیرهای محیطی
+const DB_SETTINGS_MAP = {
+  zarinpal_merchant_id: "ZARINPAL_MERCHANT_ID",
+  zarinpal_sandbox: "ZARINPAL_SANDBOX",
+  melipayamak_api_token: "MELIPAYAMAK_API_TOKEN",
+  melipayamak_sender: "MELIPAYAMAK_SENDER",
+};
+
+// بارگذاری تنظیمات زرین‌پال و ملی‌پیامک از دیتابیس (پنل مدیریت)
 async function saveSettingsFromDb() {
   try {
     const rows = await query("SELECT setting_key, setting_value FROM settings");
     for (const row of rows) {
-      process.env[row.setting_key] = row.setting_value;
+      if (row.setting_value === undefined || row.setting_value === null) continue;
+      const value = String(row.setting_value).trim();
+      if (value === "") continue; // مقادیر خالی نباید تنظیمات .env را پاک کنند
+      process.env[DB_SETTINGS_MAP[row.setting_key] || row.setting_key] = value;
     }
   } catch {
     // جدول settings هنوز ساخته نشده باشد، نادیده بگیر
