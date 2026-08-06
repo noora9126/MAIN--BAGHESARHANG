@@ -7,6 +7,7 @@ import {
 import ScrollReveal from '../components/ScrollReveal';
 import JalaliDatePicker from '../components/JalaliDatePicker';
 import { hotelInfo } from '../data/hotel';
+import { rooms as staticRooms } from '../data/rooms';
 import { useBooking } from '../context/BookingContext';
 import {
   getRooms, createReservation, requestOtp, verifyOtp, attachPhone,
@@ -84,8 +85,14 @@ export default function ReservationPage() {
 
   useEffect(() => {
     getRooms()
-      .then((r) => setRooms(r))
-      .catch(() => setError('خطا در دریافت لیست اتاق‌ها'))
+      .then((r) => {
+        if (r.length > 0) {
+          setRooms(r);
+        } else {
+          setRooms(staticRooms as unknown as Room[]);
+        }
+      })
+      .catch(() => setRooms(staticRooms as unknown as Room[]))
       .finally(() => setLoadingRooms(false));
   }, []);
 

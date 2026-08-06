@@ -1,11 +1,24 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import ScrollReveal from '../ScrollReveal';
 import RoomCard from '../RoomCard';
-import { rooms } from '../../data/rooms';
+import { getRooms, type Room } from '../../services/api';
+import { rooms as staticRooms } from '../../data/rooms';
 
 export default function PopularRooms() {
-  const popularRooms = rooms.filter((r) => r.popular).slice(0, 3);
+  const [popularRooms, setPopularRooms] = useState<Room[]>([]);
+
+  useEffect(() => {
+    getRooms()
+      .then((rooms) => {
+        const list = rooms.length > 0 ? rooms : (staticRooms as unknown as Room[]);
+        setPopularRooms(list.filter((r) => r.popular).slice(0, 3));
+      })
+      .catch(() => {
+        setPopularRooms((staticRooms as unknown as Room[]).filter((r) => r.popular).slice(0, 3));
+      });
+  }, []);
 
   return (
     <section className="section-padding bg-gradient-to-b from-transparent to-forest-50">

@@ -1,13 +1,20 @@
 import { Link } from 'react-router-dom';
 import { Users, Maximize, Star, ArrowLeft } from 'lucide-react';
-import type { Room } from '../data/rooms';
-import { formatPrice } from '../data/rooms';
+import type { Room } from '../services/api';
+
+function formatPrice(price: number): string {
+  return price.toLocaleString('fa-IR');
+}
 
 interface RoomCardProps {
   room: Room;
 }
 
 export default function RoomCard({ room }: RoomCardProps) {
+  const images = room.images && room.images.length > 0 ? room.images : ['/images/hotel/eghamat-05.jpg'];
+  const price = room.pricePerNight || 0;
+  const rating = room.rating || 0;
+
   return (
     <Link
       to={`/rooms/${room.slug}`}
@@ -16,7 +23,7 @@ export default function RoomCard({ room }: RoomCardProps) {
       {/* Image */}
       <div className="relative h-48 sm:h-56 overflow-hidden">
         <img
-          src={room.images[0]}
+          src={images[0]}
           alt={room.name}
           loading="lazy"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -28,7 +35,7 @@ export default function RoomCard({ room }: RoomCardProps) {
         )}
         <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full glass-dark px-3 py-1.5">
           <Star size={14} className="text-gold-400 fill-gold-400" />
-          <span className="text-xs font-bold text-white">{room.rating.toFixed(1)}</span>
+          <span className="text-xs font-bold text-white">{rating.toFixed(1)}</span>
         </div>
       </div>
 
@@ -46,12 +53,14 @@ export default function RoomCard({ room }: RoomCardProps) {
           <span className="flex items-center gap-1">
             <Users size={14} className="text-forest-400" />
             {room.capacity} نفر
-            {room.extraCapacity > 0 && ` + ${room.extraCapacity}`}
+            {room.extraCapacity ? ` + ${room.extraCapacity}` : ''}
           </span>
-          <span className="flex items-center gap-1">
-            <Maximize size={14} className="text-forest-400" />
-            {room.area}
-          </span>
+          {room.area && (
+            <span className="flex items-center gap-1">
+              <Maximize size={14} className="text-forest-400" />
+              {room.area}
+            </span>
+          )}
         </div>
 
         {/* Price & CTA */}
@@ -59,7 +68,7 @@ export default function RoomCard({ room }: RoomCardProps) {
           <div>
             <span className="text-xs text-forest-400">شروع از</span>
             <p className="text-lg font-bold text-forest-700">
-              {formatPrice(room.price)}
+              {formatPrice(price)}
               <span className="text-xs font-normal text-forest-400"> تومان/شب</span>
             </p>
           </div>
