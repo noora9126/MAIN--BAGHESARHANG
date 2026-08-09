@@ -12,6 +12,7 @@ async function testOtp() {
   console.log(`Username: ${process.env.MELIPAYAMAK_USERNAME ? "✓ تنظیم شده" : "✗ تنظیم نشده"}`);
   console.log(`Password: ${process.env.MELIPAYAMAK_PASSWORD ? "✓ تنظیم شده" : "✗ تنظیم نشده"}`);
   console.log(`Sender: ${process.env.MELIPAYAMAK_SENDER || "(خالی - خط پیش‌فرض اکانت)"}`);
+  console.log(`bodyId پترن کد تأیید: ${process.env.MELIPAYAMAK_OTP_BODY_ID || "(تنظیم نشده)"}`);
   console.log(`NODE_ENV: ${process.env.NODE_ENV}`);
   console.log(`SMS_SIMULATE: ${process.env.SMS_SIMULATE || "0"}`);
 

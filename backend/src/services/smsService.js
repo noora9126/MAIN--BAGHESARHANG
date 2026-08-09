@@ -10,6 +10,7 @@ const { formatPriceToman, jDate, toFaDigits } = require("../utils/helpers");
 //   POST https://rest.payamak-panel.com/api/SendSMS/SendSMS
 
 const CONSOLE_API_URL = "https://console.melipayamak.com/api/send/simple";
+const CONSOLE_SHARED_API_URL = "https://console.melipayamak.com/api/send/shared";
 const TIMEOUT_MS = 15000;
 
 let melipayamakApi = null; // نمونه کلاسیک (fallback)
@@ -64,7 +65,7 @@ async function logSms({ phone, message, type, reservationId = null, status = "SE
   );
 }
 
-// ارسال از طریق کنسول ملی‌پیامک (Auth Token)
+// ارسال از طریق کنسول ملی‌پیامک (Auth Token) — متد simple
 async function sendViaConsole(phone, sender, message) {
   const token = apiToken();
   const body = { to: phone, text: message };
@@ -83,6 +84,32 @@ async function sendViaConsole(phone, sender, message) {
     return { success: true, recId: String(recId) };
   }
   throw new Error(status || "پاسخ نامعتبر از کنسول ملی‌پیامک");
+}
+
+// ارسال از طریق کنسول ملی‌پیامک (Auth Token) — با متد shared (پترن تأییدشده)
+// پیام‌ها از مسیر ارسال «خدماتی» می‌روند و برای همه (حتماً‌ آن‌هایی که تبلیغاتی را
+// بسته/بلک‌لیست کرده‌اند) ارسال می‌شود.
+async function sendViaShared(phone, bodyId, args) {
+  const token = apiToken();
+  const body = { bodyId, to: phone, args };
+  const { data } = await axios.post(
+    `${CONSOLE_SHARED_API_URL}/${token}`,
+    body,
+    { timeout: TIMEOUT_MS }
+  );
+
+  const recId = data && data.recId;
+  const status = data && data.status;
+
+  if (recId && String(recId) !== "0") {
+    return { success: true, recId: String(recId) };
+  }
+  throw new Error(status || "پاسخ نامعتبر از کنسول ملی‌پیامک (shared)");
+}
+
+// آیدی متن پیش‌فرض (پترن) تأییدشده برای کد تأیید – در .env تنظیم می‌شود
+function otpBodyId() {
+  return (process.env.MELIPAYAMAK_OTP_BODY_ID || "").trim();
 }
 
 // ارسال از طریق وب‌سرویس کلاسیک (Username/Password) — حالت جایگزین
@@ -184,6 +211,26 @@ function checkOutMessage(reservationNumber) {
 }
 
 async function sendOtp(phone, code) {
+  const bodyId = otpBodyId();
+
+  // حالت شبیه‌سازی (فقط برای توسعه/تست)
+  if (simulateEnabled()) {
+    await logSms({ phone, message: otpMessage(code), type: "OTP", status: "SENT" });
+    return { simulated: true, success: true };
+  }
+
+  // روش اصلی: پترنِ «خدماتی» تأییدشده (برای همه ارسال می‌شود)
+  if (apiToken() && bodyId) {
+    try {
+      const result = await sendViaShared(phone, Number(bodyId), [String(code)]);
+      await logSms({ phone, message: otpMessage(code), type: "OTP", status: "SENT" });
+      return { success: true, simulated: false, ...result };
+    } catch (err) {
+      console.error("ارسال کد تأیید از طریق پترن ناموفق بود، تلاش با روش معمول:", errorMessage(err));
+    }
+  }
+
+  // روش جایگزین: ارسال ساده (ممکن است به برخی گیرندگان نخورد)
   return sendSms(phone, otpMessage(code), { type: "OTP" });
 }
 
