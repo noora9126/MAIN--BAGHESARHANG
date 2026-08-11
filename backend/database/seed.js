@@ -4,8 +4,8 @@ const bcrypt = require("bcryptjs");
 const { query, pool } = require("../src/config/db");
 require("dotenv").config();
 
-const username = process.env.ADMIN_USERNAME || "admin";
-const password = process.env.ADMIN_PASSWORD || "admin123";
+const username = process.env.ADMIN_USERNAME || "amiraliriazi_hotel_manager";
+const password = process.env.ADMIN_PASSWORD || "V7!qR2#Lm9@Xz4$Np8";
 const name = process.env.ADMIN_NAME || "مدیر هتل";
 const email = process.env.ADMIN_EMAIL || "admin@baghsarhang.ir";
 
@@ -28,11 +28,24 @@ async function run() {
 
   const existing = await query(`SELECT id FROM admin_users WHERE username = ?`, [username]);
   if (existing.length === 0) {
-    await query(
-      `INSERT INTO admin_users (username, email, name, password_hash, role) VALUES (?, ?, ?, ?, 'SUPER_ADMIN')`,
-      [username, email, name, hash]
-    );
-    console.log(`✅ ادمین ساخته شد: ${username} / ${password}`);
+    // اگر ادمین قدیمی با نام کاربری پیش‌فرض قبلی وجود دارد، همان را به نام جدید تغییر بده
+    const old = await query(`SELECT id FROM admin_users WHERE username = 'admin' LIMIT 1`);
+    if (old.length > 0) {
+      await query(`UPDATE admin_users SET username = ?, password_hash = ?, name = ?, email = ? WHERE id = ?`, [
+        username,
+        hash,
+        name,
+        email,
+        old[0].id,
+      ]);
+      console.log(`✅ ادمین به نام کاربری جدید تغییر کرد: ${username}`);
+    } else {
+      await query(
+        `INSERT INTO admin_users (username, email, name, password_hash, role) VALUES (?, ?, ?, ?, 'SUPER_ADMIN')`,
+        [username, email, name, hash]
+      );
+      console.log(`✅ ادمین ساخته شد: ${username}`);
+    }
   } else {
     await query(`UPDATE admin_users SET password_hash = ?, name = ?, email = ? WHERE username = ?`, [
       hash,

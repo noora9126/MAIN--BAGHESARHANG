@@ -22,9 +22,14 @@ export interface ReservationRow extends Record<string, unknown> {
   check_out: string;
   number_of_nights: number;
   number_of_guests: number;
+  number_of_adults?: number;
+  number_of_children?: number;
+  child_ages?: string | null;
+  guest_details?: string | null;
   guest_name: string;
   guest_email: string;
   guest_phone: string;
+  guest_national_id?: string | null;
   special_requests?: string;
   total_price: number;
   price_per_night: number;
@@ -39,6 +44,37 @@ export interface ReservationRow extends Record<string, unknown> {
   checked_in_at?: string | null;
   checked_out_at?: string | null;
   room_image?: string;
+  discount_code?: string | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  discount_reason?: string | null;
+}
+
+export interface CalendarRoom {
+  id: number;
+  name: string;
+  image: string | null;
+  price_per_night: number;
+  capacity: number;
+  extra_capacity: number;
+}
+
+export interface CalendarBooking {
+  id: number;
+  reservation_number: string;
+  room_id: number;
+  check_in: string;
+  check_out: string;
+  status: 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED';
+  guest_name: string;
+  number_of_adults: number;
+  number_of_children: number;
+  payment_status: string;
+}
+
+export async function adminAvailability(from: string, to: string): Promise<{ rooms: CalendarRoom[]; bookings: CalendarBooking[] }> {
+  const { data } = await adminApi.get('/api/admin/availability', { params: { from, to } });
+  return data;
 }
 
 export interface GuestRow {
@@ -220,9 +256,12 @@ export async function adminGuestStats(): Promise<{ totalGuests: number; newThisM
 
 // ─────────── تنظیمات و اتاق‌ها ───────────
 export interface Settings {
+  hotel_name: string;
   hotel_phone: string;
   hotel_phone2: string;
   hotel_email: string;
+  hotel_address: string;
+  hotel_about: string;
   check_in_time: string;
   check_out_time: string;
   kavenegar_api_key: string;
@@ -253,8 +292,118 @@ export async function adminRooms(): Promise<Room[]> {
   return data.rooms;
 }
 
+export async function adminCreateRoom(body: Partial<Room>): Promise<Room> {
+  const { data } = await adminApi.post('/api/admin/rooms', body);
+  return data.room;
+}
+
 export async function adminUpdateRoom(id: number, body: Record<string, unknown>) {
   const { data } = await adminApi.put(`/api/admin/rooms/${id}`, body);
+  return data;
+}
+
+// ─────────── اعلان‌ها ───────────
+export interface AdminNotification {
+  id: number;
+  type: string;
+  title: string;
+  message: string;
+  ref_type: string | null;
+  ref_id: number | null;
+  is_read: number;
+  created_at: string;
+}
+
+export async function adminNotifications(limit = 50): Promise<{ notifications: AdminNotification[]; unreadCount: number }> {
+  const { data } = await adminApi.get('/api/admin/notifications', { params: { limit } });
+  return data;
+}
+
+export async function adminMarkNotificationRead(id: number): Promise<{ unreadCount: number }> {
+  const { data } = await adminApi.post(`/api/admin/notifications/${id}/read`);
+  return data;
+}
+
+export async function adminMarkAllNotificationsRead(): Promise<{ unreadCount: number }> {
+  const { data } = await adminApi.post('/api/admin/notifications/read-all');
+  return data;
+}
+
+// ─────────── تخفیف‌ها ───────────
+export interface DiscountRow {
+  id: number;
+  code: string;
+  discount_percent: number;
+  description: string | null;
+  reason: string | null;
+  customer_phones: string | null;
+  valid_from: string | null;
+  valid_until: string | null;
+  usage_limit: number | null;
+  used_count: number;
+  is_active: number;
+  created_at: string;
+  reservation_count?: number;
+}
+
+export async function adminDiscounts(): Promise<DiscountRow[]> {
+  const { data } = await adminApi.get('/api/admin/discounts');
+  return data.discounts;
+}
+
+export async function adminCreateDiscount(body: Record<string, unknown>): Promise<DiscountRow> {
+  const { data } = await adminApi.post('/api/admin/discounts', body);
+  return data.discount;
+}
+
+export async function adminUpdateDiscount(id: number, body: Record<string, unknown>): Promise<DiscountRow> {
+  const { data } = await adminApi.put(`/api/admin/discounts/${id}`, body);
+  return data.discount;
+}
+
+export async function adminToggleDiscount(id: number): Promise<{ isActive: boolean }> {
+  const { data } = await adminApi.post(`/api/admin/discounts/${id}/toggle`);
+  return data;
+}
+
+export async function adminDeleteDiscount(id: number) {
+  const { data } = await adminApi.delete(`/api/admin/discounts/${id}`);
+  return data;
+}
+
+// ─────────── نظرات ───────────
+export interface ReviewRow {
+  id: number;
+  source: string;
+  source_url: string | null;
+  author: string | null;
+  rating: number | null;
+  rating_label: string | null;
+  title: string | null;
+  content: string | null;
+  stay_date: string | null;
+  room_type: string | null;
+  status: 'ACTIVE' | 'HIDDEN';
+  created_at: string;
+}
+
+export async function adminReviews(): Promise<{ reviews: ReviewRow[]; stats: { total: number; active: number; avgRating: number } }> {
+  const { data } = await adminApi.get('/api/admin/reviews');
+  return data;
+}
+
+export async function adminSyncReviews(): Promise<{ result: Record<string, unknown>; message: string }> {
+  const { data } = await adminApi.post('/api/admin/reviews/sync');
+  return data;
+}
+
+export async function adminToggleReview(id: number): Promise<{ status: string }> {
+  const { data } = await adminApi.post(`/api/admin/reviews/${id}/toggle`);
+  return data;
+}
+
+export async function adminDeleteReview(id: number) {
+  const { data } = await adminApi.delete(`/api/admin/reviews/${id}`);
   return data;
 }
 

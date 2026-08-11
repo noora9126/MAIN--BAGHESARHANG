@@ -69,3 +69,72 @@ export function formatDateTime(dt?: string | null): string {
   if (isNaN(d.getTime())) return '—';
   return `${jalaliString(d)} ${faNum(String(d.getHours()).padStart(2, '0'))}:${faNum(String(d.getMinutes()).padStart(2, '0'))}`;
 }
+
+// ─────────────── تقویم شمسی کامل (بر پایه Intl — بدون نیاز به کتابخانه) ───────────────
+// همه محاسبات روی UTC انجام می‌شود تا صرف‌نظر از منطقه زمانی سیستم، نتیجه یکسان باشد
+
+const persianFormatter = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', {
+  timeZone: 'UTC',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+});
+
+export function utcDate(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+export function jalaliParts(date: Date): { y: number; m: number; d: number } {
+  const parts = persianFormatter.formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value || 0);
+  return { y: get('year'), m: get('month'), d: get('day') };
+}
+
+// اولین روز ماه شمسی که این تاریخ در آن قرار دارد
+export function jalaliMonthStart(date: Date): Date {
+  const { m } = jalaliParts(date);
+  let cur = date;
+  while (jalaliParts(cur).m === m) {
+    cur = new Date(cur.getTime() - 86400000);
+  }
+  return new Date(cur.getTime() + 86400000);
+}
+
+// تعداد روزهای ماه شمسی
+export function jalaliMonthLength(start: Date): number {
+  const { m, y } = jalaliParts(start);
+  let cur = start;
+  let len = 0;
+  while (jalaliParts(cur).m === m && jalaliParts(cur).y === y) {
+    cur = new Date(cur.getTime() + 86400000);
+    len += 1;
+  }
+  return len;
+}
+
+// جابه‌جایی یک ماه شمسی به جلو/عقب (برگشتی: اولین روز ماه هدف)
+export function shiftJalaliMonth(start: Date, dir: 1 | -1): Date {
+  const { y, m } = jalaliParts(start);
+  let ty = y;
+  let tm = m + dir;
+  if (tm < 1) { tm = 12; ty -= 1; }
+  if (tm > 12) { tm = 1; ty += 1; }
+  let cur = new Date(start.getTime() + dir * 86400000);
+  let guard = 0;
+  while (guard < 70) {
+    const p = jalaliParts(cur);
+    if (p.y === ty && p.m === tm) return cur;
+    cur = new Date(cur.getTime() + dir * 86400000);
+    guard += 1;
+  }
+  return start;
+}
+
+export function jalaliMonthLabel(date: Date): string {
+  const { y, m } = jalaliParts(date);
+  return `${MONTHS[m - 1]} ${faNum(y)}`;
+}
+
+export function isoOfUtc(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}

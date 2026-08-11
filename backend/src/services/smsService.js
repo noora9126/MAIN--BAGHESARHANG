@@ -191,7 +191,7 @@ async function sendSms(phone, message, { type = "CUSTOM", reservationId = null }
 // ---------- قالب‌های پیامک ----------
 
 function otpMessage(code) {
-  return `سلام! کد تأیید شماره تلفن شما: ${toFaDigits(code)}\nاین کد 10 دقیقه معتبر است.\nهتل باغ سرهنگ`;
+  return `سلام! کد تأیید شماره تلفن شما: ${toFaDigits(code)}\nاین کد ۲ دقیقه معتبر است و فقط یکبار قابل استفاده است.\nهتل باغ سرهنگ`;
 }
 
 function reservationConfirmedMessage(guestName, reservationNumber, roomName, checkIn, checkOut, nights, totalPrice) {

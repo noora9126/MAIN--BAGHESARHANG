@@ -1,5 +1,6 @@
 const { query } = require("../config/db");
-const { mapRoom } = require("../services/reservationService");
+const { mapRoom, getRoomAvailability } = require("../services/reservationService");
+const { dateOnlyString } = require("../utils/helpers");
 
 const getRooms = async (req, res) => {
   try {
@@ -34,4 +35,25 @@ const getRoomById = async (req, res) => {
   }
 };
 
-module.exports = { getRooms, getRoomById };
+// ─────────────── تاریخ‌های اشغال‌شده یک اتاق ───────────────
+// برای نمایش قرمز/نارنجی روزهای رزروشده در تقویم سایت
+const getRoomAvailabilityController = async (req, res) => {
+  try {
+    const roomId = Number(req.params.id);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const far = new Date(today);
+    far.setFullYear(far.getFullYear() + 1);
+
+    const from = req.query.from || dateOnlyString(today);
+    const to = req.query.to || dateOnlyString(far);
+
+    const dates = await getRoomAvailability(roomId, from, to);
+    res.json({ success: true, dates });
+  } catch (err) {
+    console.error("getRoomAvailability error:", err);
+    res.status(500).json({ success: false, message: "خطای سرور" });
+  }
+};
+
+module.exports = { getRooms, getRoomById, getRoomAvailabilityController };

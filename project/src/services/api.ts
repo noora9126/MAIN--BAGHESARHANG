@@ -36,6 +36,10 @@ export interface Reservation {
   check_out: string;
   number_of_nights: number;
   number_of_guests: number;
+  number_of_adults?: number;
+  number_of_children?: number;
+  child_ages?: string | null;
+  guest_details?: string | null;
   guest_name: string;
   guest_email: string;
   guest_phone: string;
@@ -54,6 +58,23 @@ export interface Reservation {
   checked_in_at?: string;
   checked_out_at?: string;
   room_image?: string;
+  discount_code?: string | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  discount_reason?: string | null;
+}
+
+export interface GuestDetail {
+  name: string;
+  nationalId: string;
+}
+
+export interface PricingBreakdown {
+  adultPrice: number;
+  childRates: number[];
+  adultTotal: number;
+  childTotal: number;
+  totalPrice: number;
 }
 
 // ─────────── اتاق‌ها ───────────
@@ -67,18 +88,51 @@ export async function getRoom(id: number): Promise<Room> {
   return data.room;
 }
 
+// ─────────── در دسترس بودن تاریخ‌ها (برای قرمز شدن روزهای رزروشده) ───────────
+export async function getRoomAvailability(
+  roomId: number,
+  from: string,
+  to: string
+): Promise<{ date: string; status: 'CONFIRMED' | 'PENDING' }[]> {
+  const { data } = await api.get(`/api/rooms/${roomId}/availability`, { params: { from, to } });
+  return data.dates || [];
+}
+
 // ─────────── رزرو ───────────
 export async function createReservation(payload: {
   roomId: number;
   checkIn: string;
   checkOut: string;
-  numberOfGuests: number;
+  numberOfAdults: number;
+  numberOfChildren: number;
+  childAges: number[];
+  guests: GuestDetail[];
   guestName: string;
   guestEmail: string;
   nationalId: string;
   specialRequests?: string;
-}): Promise<{ reservation: Reservation }> {
+  discountCode?: string;
+}): Promise<{ reservation: Reservation; pricing?: PricingBreakdown }> {
   const { data } = await api.post('/api/reservations', payload);
+  return data;
+}
+
+// ─────────── اعتبارسنجی کد تخفیف ───────────
+export async function validateDiscountCode(payload: {
+  code: string;
+  roomId: number;
+  checkIn: string;
+  checkOut: string;
+  numberOfAdults: number;
+  numberOfChildren: number;
+  childAges?: number[];
+  phone?: string;
+}): Promise<{
+  success: boolean;
+  discount: { code: string; percent: number; amount: number; reason?: string | null };
+  message?: string;
+}> {
+  const { data } = await api.post('/api/reservations/discount/validate', payload);
   return data;
 }
 

@@ -1,13 +1,20 @@
-import { useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Bell, CheckCheck, ChevronDown, KeyRound, Loader2, LogOut, Menu } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, KeyRound, Loader2, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '@/features/auth/AuthProvider';
-import { changePassword } from '@/services/adminApi';
+import {
+  adminMarkAllNotificationsRead,
+  adminMarkNotificationRead,
+  adminNotifications,
+  changePassword,
+  type AdminNotification,
+} from '@/services/adminApi';
 import { apiError } from '@/services/api';
 import { adminNavItems } from '@/features/admin/nav';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { toast } from 'sonner';
+import { faNum, formatDateTime } from '@/utils/dates';
 
 interface HeaderProps {
   onOpenSidebar: () => void;
@@ -42,14 +50,52 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifLoading, setNotifLoading] = useState(true);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const currentItem = adminNavItems.find((item) => location.pathname.startsWith(item.path));
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await adminNotifications(30);
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
+    } catch {
+      // بی‌صدا — اعلان‌ها نباید کار پنل را مختل کنند
+    } finally {
+      setNotifLoading(false);
+    }
+  }, []);
+
+  // بارگذاری اولیه + به‌روزرسانی دوره‌ای (هر ۶۰ ثانیه)
+  useEffect(() => {
+    loadNotifications();
+    pollingRef.current = setInterval(loadNotifications, 60_000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [loadNotifications]);
+
+  async function handleMarkRead(id: number) {
+    await adminMarkNotificationRead(id);
+    setUnreadCount((c) => Math.max(0, c - 1));
+    setNotifications((list) => list.map((n) => (n.id === id ? { ...n, is_read: 1 } : n)));
+  }
+
+  async function handleMarkAllRead() {
+    await adminMarkAllNotificationsRead();
+    setUnreadCount(0);
+    setNotifications((list) => list.map((n) => ({ ...n, is_read: 1 })));
+  }
 
   function handleLogout() {
     logout();
     navigate('/admin/login', { replace: true });
   }
 
-  async function handleChangePassword(e: FormEvent) {
+  async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
     if (newPassword.length < 6) {
       toast.error('رمز جدید حداقل ۶ کاراکتر باشد');
@@ -96,15 +142,57 @@ export function Header({ onOpenSidebar }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative" aria-label="اعلان‌ها">
               <Bell className="h-5 w-5" />
-              <span className="absolute right-1.5 top-1.5 flex h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
+              {unreadCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white ring-2 ring-background">
+                  {faNum(Math.min(unreadCount, 99))}
+                </span>
+              ) : null}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
-            <DropdownMenuLabel className="font-bold">اعلان‌ها</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              اعلان جدیدی ندارید
-            </p>
+          <DropdownMenuContent align="end" className="w-80 p-0">
+            <div className="flex items-center justify-between px-4 py-3">
+              <DropdownMenuLabel className="p-0 font-bold">اعلان‌ها</DropdownMenuLabel>
+              {unreadCount > 0 ? (
+                <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-forest-700" onClick={handleMarkAllRead}>
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  خواندن همه
+                </Button>
+              ) : null}
+            </div>
+            <DropdownMenuSeparator className="my-0" />
+            <ScrollArea className="max-h-96">
+              {notifLoading ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  در حال بارگذاری...
+                </div>
+              ) : notifications.length === 0 ? (
+                <p className="px-3 py-8 text-center text-sm text-muted-foreground">اعلان جدیدی ندارید</p>
+              ) : (
+                notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleMarkRead(n.id)}
+                    className={`flex w-full items-start gap-3 px-4 py-3 text-start transition-colors hover:bg-accent ${
+                      n.is_read ? 'opacity-60' : ''
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                        n.is_read ? 'bg-muted' : 'bg-forest-500'
+                      }`}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-semibold">{n.title}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{formatDateTime(n.created_at)}</span>
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{n.message}</span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </ScrollArea>
           </DropdownMenuContent>
         </DropdownMenu>
 

@@ -7,7 +7,6 @@ const ReservationsPage = lazy(() => import('@/features/admin/ReservationsPage'))
 const RoomsPage = lazy(() => import('@/features/admin/RoomsPage'));
 const CustomersPage = lazy(() => import('@/features/admin/CustomersPage'));
 const FinancePage = lazy(() => import('@/features/admin/FinancePage'));
-const ServicesPage = lazy(() => import('@/features/admin/ServicesPage'));
 const ReviewsPage = lazy(() => import('@/features/admin/ReviewsPage'));
 const DiscountsPage = lazy(() => import('@/features/admin/DiscountsPage'));
 const AdminSettingsPage = lazy(() => import('@/features/admin/AdminSettingsPage'));
@@ -34,7 +33,6 @@ export function AdminRoutes() {
       <Route path="rooms" element={<Suspense fallback={<AdminPageFallback />}><RoomsPage /></Suspense>} />
       <Route path="customers" element={<Suspense fallback={<AdminPageFallback />}><CustomersPage /></Suspense>} />
       <Route path="finance" element={<Suspense fallback={<AdminPageFallback />}><FinancePage /></Suspense>} />
-      <Route path="services" element={<Suspense fallback={<AdminPageFallback />}><ServicesPage /></Suspense>} />
       <Route path="reviews" element={<Suspense fallback={<AdminPageFallback />}><ReviewsPage /></Suspense>} />
       <Route path="discounts" element={<Suspense fallback={<AdminPageFallback />}><DiscountsPage /></Suspense>} />
       <Route path="settings" element={<Suspense fallback={<AdminPageFallback />}><AdminSettingsPage /></Suspense>} />

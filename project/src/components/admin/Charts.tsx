@@ -6,10 +6,12 @@ export function LineChart({
   data,
   color = '#2c6440',
   height = 220,
+  valueLabel,
 }: {
   data: { label: string; value: number }[];
   color?: string;
   height?: number;
+  valueLabel?: (v: number) => string;
 }) {
   const W = 560;
   const H = height;
@@ -47,9 +49,16 @@ export function LineChart({
           <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#fff" stroke={color} strokeWidth="2" />
         ))}
         {points.map((p, i) => (
-          <text key={i} x={p.x} y={H - 8} textAnchor="middle" fontSize="9" fill="#8fa393">
-            {p.label}
-          </text>
+          <g key={`lbl-${i}`}>
+            {valueLabel && p.value > 0 && (
+              <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fill="#5b6f5f" fontWeight="bold">
+                {valueLabel(p.value)}
+              </text>
+            )}
+            <text x={p.x} y={H - 8} textAnchor="middle" fontSize="9" fill="#8fa393">
+              {p.label}
+            </text>
+          </g>
         ))}
       </svg>
     </div>

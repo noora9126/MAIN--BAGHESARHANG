@@ -1,6 +1,7 @@
 const { query } = require("../config/db");
 const { requestPayment, verifyPayment, zarinpalConfigured } = require("../services/zarinpalService");
 const { sendPaymentConfirmed } = require("../services/smsService");
+const { createNotification } = require("../services/notificationService");
 
 // ─────────────── درخواست پرداخت (رفتن به درگاه) ───────────────
 const requestPaymentController = async (req, res) => {
@@ -132,6 +133,14 @@ const verifyPaymentController = async (req, res) => {
     });
     await query(`UPDATE reservations SET sms_status = ? WHERE id = ?`, [sms.success ? "SENT" : "FAILED", rid]);
 
+    createNotification({
+      type: "PAYMENT_CONFIRMED",
+      title: "پرداخت تایید شد",
+      message: `پرداخت رزرو ${reservation.reservation_number} به مبلغ ${reservation.total_price.toLocaleString("fa-IR")} تومان انجام شد`,
+      refType: "reservation",
+      refId: rid,
+    });
+
     res.json({
       success: true,
       message: "پرداخت با موفقیت انجام شد",
@@ -173,6 +182,14 @@ const manualConfirmPayment = async (req, res) => {
       reservationId,
     });
     await query(`UPDATE reservations SET sms_status = ? WHERE id = ?`, [sms.success ? "SENT" : "FAILED", reservationId]);
+
+    createNotification({
+      type: "PAYMENT_CONFIRMED",
+      title: "پرداخت تایید شد",
+      message: `پرداخت رزرو ${reservation.reservation_number} به مبلغ ${reservation.total_price.toLocaleString("fa-IR")} تومان انجام شد`,
+      refType: "reservation",
+      refId: reservationId,
+    });
 
     res.json({
       success: true,

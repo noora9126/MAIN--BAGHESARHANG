@@ -77,6 +77,31 @@ function generateOtpCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
 
+// هش کردن کد تایید قبل از ذخیره (پیشنهاد OWASP: عدم نگهداری کد به صورت متن ساده)
+function hashOtpCode(code) {
+  return crypto.createHash("sha256").update(String(code)).digest("hex");
+}
+
+// ─────────────── قوانین اقامت کودک (دستورالعمل رسمی تأسیسات گردشگری) ───────────────
+// نرخ اقامت در اتاق به ازای هر بزرگسال در هر شب محاسبه می‌شود.
+//  - کودک زیر ۲ سال: رایگان
+//  - کودک ۲ تا ۱۲ سال: نیم‌بها
+//  - بالای ۱۲ سال: بزرگسال (بها کامل)
+// (حد آستانه‌ها از تنظیمات پنل مدیریت قابل تغییر است)
+const CHILD_FREE_UNDER = 2;
+const CHILD_HALF_UNDER = 12;
+const OTP_TTL_MINUTES = 2;
+
+// نرخ هر کودک در هر شب بر اساس سن
+function childNightPrice(age, adultPrice, policy = {}) {
+  const a = Number(age) || 0;
+  const freeUnder = Number(policy.freeUnder ?? CHILD_FREE_UNDER);
+  const halfUnder = Number(policy.halfUnder ?? CHILD_HALF_UNDER);
+  if (a < freeUnder) return 0;
+  if (a <= halfUnder) return Math.round(Number(adultPrice) / 2);
+  return Number(adultPrice);
+}
+
 function sanitizeString(value, maxLen = 500) {
   if (value == null) return "";
   return String(value)
@@ -113,6 +138,11 @@ module.exports = {
   isValidPersianName,
   buildReservationNumber,
   generateOtpCode,
+  hashOtpCode,
+  childNightPrice,
+  CHILD_FREE_UNDER,
+  CHILD_HALF_UNDER,
+  OTP_TTL_MINUTES,
   sanitizeString,
   parseDateOnly,
   dateOnlyString,

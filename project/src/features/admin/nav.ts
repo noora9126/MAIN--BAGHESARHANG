@@ -1,7 +1,6 @@
 import {
   BedDouble,
   CalendarDays,
-  ConciergeBell,
   LayoutDashboard,
   Percent,
   Settings,
@@ -23,7 +22,6 @@ export const adminNavItems: AdminNavItem[] = [
   { path: '/admin/rooms', label: 'اتاق‌ها', icon: BedDouble },
   { path: '/admin/customers', label: 'مهمانان', icon: Users },
   { path: '/admin/finance', label: 'مالی', icon: Wallet },
-  { path: '/admin/services', label: 'خدمات', icon: ConciergeBell },
   { path: '/admin/reviews', label: 'نظرات', icon: Star },
   { path: '/admin/discounts', label: 'تخفیف‌ها', icon: Percent },
   { path: '/admin/settings', label: 'تنظیمات', icon: Settings },

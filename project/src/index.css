@@ -139,3 +139,37 @@
 ::-webkit-scrollbar-track { background: #f0f7f0; }
 ::-webkit-scrollbar-thumb { background: #2c6440; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #234f33; }
+
+/* ─────────── تقویم: روزهای رزروشده ─────────── */
+/* قرمز: رزرو قطعی (پرداخت شده) — نارنجی: در انتظار پرداخت */
+.rmdp-day.rmdp-blocked-confirmed span,
+.rmdp-day.rmdp-blocked-confirmed span:hover {
+  background-color: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  border-radius: 50% !important;
+  cursor: not-allowed;
+}
+.rmdp-day.rmdp-blocked-pending span,
+.rmdp-day.rmdp-blocked-pending span:hover {
+  background-color: #f59e0b !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  border-radius: 50% !important;
+  cursor: not-allowed;
+}
+.rmdp-day.rmdp-blocked-confirmed:hover::after,
+.rmdp-day.rmdp-blocked-pending:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  right: 50%;
+  transform: translateX(50%);
+  background: #1f2937;
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 50;
+}

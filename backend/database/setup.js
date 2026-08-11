@@ -25,6 +25,10 @@ const TABLES = [
     check_out DATE NOT NULL,
     number_of_nights INT NOT NULL DEFAULT 1,
     number_of_guests INT NOT NULL DEFAULT 1,
+    number_of_adults INT NOT NULL DEFAULT 1,
+    number_of_children INT NOT NULL DEFAULT 0,
+    child_ages TEXT NULL,
+    guest_details TEXT NULL,
     guest_name VARCHAR(100) NOT NULL,
     guest_email VARCHAR(100) NOT NULL,
     guest_phone VARCHAR(20) NOT NULL DEFAULT '',
@@ -102,6 +106,57 @@ const TABLES = [
     setting_value TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
+
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    ref_type VARCHAR(50) NULL,
+    ref_id INT NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_read (is_read),
+    INDEX idx_type (type),
+    INDEX idx_created (created_at)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS discount_codes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    discount_percent INT NOT NULL,
+    description TEXT,
+    reason VARCHAR(255),
+    customer_phones TEXT NULL,
+    valid_from DATE NULL,
+    valid_until DATE NULL,
+    usage_limit INT NULL,
+    used_count INT NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_code (code),
+    INDEX idx_active (is_active)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    source VARCHAR(50) NOT NULL,
+    source_url VARCHAR(255),
+    author VARCHAR(100),
+    rating DECIMAL(2,1),
+    rating_label VARCHAR(50),
+    title VARCHAR(255),
+    content TEXT,
+    stay_date VARCHAR(100),
+    room_type VARCHAR(100),
+    external_id VARCHAR(100),
+    status ENUM('ACTIVE','HIDDEN') DEFAULT 'ACTIVE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_review_source_ext (source, external_id),
+    INDEX idx_source (source),
+    INDEX idx_status (status)
+  )`,
 ];
 
 // ستون‌های اختیاری برای جدول rooms (در دیتابیس‌های قدیمی وجود ندارند)
@@ -110,6 +165,15 @@ const ALTERS = [
   "ALTER TABLE rooms ADD COLUMN type VARCHAR(50) NULL",
   "ALTER TABLE reservations ADD COLUMN guest_national_id VARCHAR(10) NULL",
   "ALTER TABLE reservations ADD INDEX idx_guest_national_id (guest_national_id)",
+  "ALTER TABLE reservations ADD COLUMN number_of_adults INT NOT NULL DEFAULT 1",
+  "ALTER TABLE reservations ADD COLUMN number_of_children INT NOT NULL DEFAULT 0",
+  "ALTER TABLE reservations ADD COLUMN child_ages TEXT NULL",
+  "ALTER TABLE reservations ADD COLUMN guest_details TEXT NULL",
+  "ALTER TABLE phone_verifications MODIFY COLUMN code VARCHAR(64) NOT NULL",
+  "ALTER TABLE reservations ADD COLUMN discount_code VARCHAR(50) NULL",
+  "ALTER TABLE reservations ADD COLUMN discount_percent INT NULL",
+  "ALTER TABLE reservations ADD COLUMN discount_amount INT NULL",
+  "ALTER TABLE reservations ADD COLUMN discount_reason VARCHAR(255) NULL",
 ];
 
 async function run() {

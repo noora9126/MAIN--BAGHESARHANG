@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { Room, Reservation } from '../services/api';
+import type { Room, Reservation, GuestDetail } from '../services/api';
 
 export interface BookingState {
   step: number;
   room?: Room;
   checkIn?: string;
   checkOut?: string;
-  numberOfGuests: number;
+  numberOfAdults: number;
+  numberOfChildren: number;
+  childAges: number[];
+  guests: GuestDetail[];
   nights: number;
   guestName: string;
   guestEmail: string;
@@ -19,7 +22,10 @@ export interface BookingState {
 
 const initial: BookingState = {
   step: 1,
-  numberOfGuests: 2,
+  numberOfAdults: 2,
+  numberOfChildren: 0,
+  childAges: [],
+  guests: [],
   nights: 0,
   guestName: '',
   guestEmail: '',

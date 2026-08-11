@@ -7,14 +7,13 @@ function formatPrice(price: number): string {
 }
 
 interface RoomCardProps {
-  room: Room;
+  room: Omit<Room, 'id'> & { id: number | string };
 }
 
 export default function RoomCard({ room }: RoomCardProps) {
   const images = room.images && room.images.length > 0 ? room.images : ['/images/hotel/eghamat-05.jpg'];
   const price = Number(room.pricePerNight) || 0;
   const rating = Number(room.rating) || 0;
-  const extraCapacity = Number(room.extraCapacity) || 0;
 
   return (
     <Link

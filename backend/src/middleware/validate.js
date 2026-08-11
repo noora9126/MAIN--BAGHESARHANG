@@ -12,9 +12,26 @@ function badRequest(res, message) {
   return res.status(400).json({ success: false, message });
 }
 
+function toNumberList(value) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.map((v) => Number(v));
+  return [];
+}
+
 // اعتبارسنجی فرم رزرو
 function validateReservationInput(req, res, next) {
-  const { roomId, checkIn, checkOut, numberOfGuests, guestName, guestEmail, nationalId } = req.body || {};
+  const {
+    roomId,
+    checkIn,
+    checkOut,
+    guestName,
+    guestEmail,
+    nationalId,
+    numberOfAdults,
+    numberOfChildren,
+    childAges,
+    guests,
+  } = req.body || {};
 
   if (!roomId || isNaN(Number(roomId))) {
     return badRequest(res, "شناسه اتاق نامعتبر است");
@@ -40,8 +57,29 @@ function validateReservationInput(req, res, next) {
     return badRequest(res, "مدت اقامت باید بین 1 تا 90 شب باشد");
   }
 
-  if (!numberOfGuests || isNaN(Number(numberOfGuests)) || Number(numberOfGuests) < 1) {
-    return badRequest(res, "تعداد مهمانان نامعتبر است");
+  // ── تعداد مسافران: بزرگسال + کودک ──
+  const adults = Number(numberOfAdults) || 1;
+  const children = Number(numberOfChildren) || 0;
+  if (adults < 1 || !Number.isInteger(adults)) {
+    return badRequest(res, "تعداد بزرگسالان نامعتبر است");
+  }
+  if (children < 0 || !Number.isInteger(children)) {
+    return badRequest(res, "تعداد کودکان نامعتبر است");
+  }
+
+  const ages = toNumberList(childAges);
+  if (ages.length !== children) {
+    return badRequest(res, "سن همه کودکان را مشخص کنید");
+  }
+  for (const age of ages) {
+    if (!Number.isInteger(age) || age < 0 || age > 17) {
+      return badRequest(res, "سن کودک نامعتبر است");
+    }
+  }
+
+  const totalPersons = adults + children;
+  if (totalPersons < 1) {
+    return badRequest(res, "تعداد مسافران نامعتبر است");
   }
 
   // نام و نام خانوادگی: حداقل 2 کلمه، فقط حروف فارسی
@@ -59,16 +97,44 @@ function validateReservationInput(req, res, next) {
     return badRequest(res, "کد ملی معتبر وارد کنید (کد ملی ۱۰ رقمی خود را بررسی کنید)");
   }
 
+  // ── مشخصات سایر مهمانان بزرگسال (برای تطبیق مدارک هنگام ورود) ──
+  const guestList = [];
+  const leadGuest = {
+    name: String(guestName).trim().slice(0, 100),
+    nationalId: normalizedNationalId,
+  };
+  const others = Array.isArray(guests) ? guests : [];
+  if (others.length > adults - 1) {
+    return badRequest(res, "تعداد مهمانان ثبت‌شده بیش از حد مجاز است");
+  }
+  for (const g of others) {
+    const gName = String(g?.name || "").trim().slice(0, 100);
+    const gNationalId = toEnDigits(g?.nationalId || "").trim();
+    if (!isValidPersianName(gName)) {
+      return badRequest(res, "نام و نام خانوادگی همه مهمانان را کامل و به فارسی وارد کنید");
+    }
+    if (!isValidNationalId(gNationalId)) {
+      return badRequest(res, "کد ملی همه مهمانان معتبر وارد کنید (کد ملی ۱۰ رقمی)");
+    }
+    guestList.push({ name: gName, nationalId: gNationalId });
+  }
+  guestList.unshift(leadGuest);
+
   req.booking = {
     roomId: Number(roomId),
     checkIn: ci,
     checkOut: co,
     numberOfNights: nights,
-    numberOfGuests: Number(numberOfGuests),
-    guestName: String(guestName).trim().slice(0, 100),
+    numberOfGuests: totalPersons,
+    numberOfAdults: adults,
+    numberOfChildren: children,
+    childAges: ages,
+    guests: guestList,
+    guestName: leadGuest.name,
     guestEmail: String(guestEmail).trim().toLowerCase().slice(0, 100),
     nationalId: normalizedNationalId,
     specialRequests: String(req.body.specialRequests || "").slice(0, 1000),
+    discountCode: String(req.body.discountCode || "").trim().slice(0, 50) || null,
   };
 
   next();
