@@ -70,6 +70,7 @@ const TABLES = [
     full_name VARCHAR(100) NOT NULL,
     mobile VARCHAR(20) NOT NULL UNIQUE,
     email VARCHAR(100) NULL,
+    username VARCHAR(50) NULL UNIQUE,
     national_code VARCHAR(10) NULL,
     password_hash VARCHAR(255) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 0,
@@ -85,6 +86,7 @@ const TABLES = [
     code VARCHAR(6) NOT NULL,
     attempts INT NOT NULL DEFAULT 0,
     status ENUM('PENDING','VERIFIED','EXPIRED') DEFAULT 'PENDING',
+    purpose VARCHAR(30) NOT NULL DEFAULT 'BOOKING',
     expires_at DATETIME NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_phone (phone)

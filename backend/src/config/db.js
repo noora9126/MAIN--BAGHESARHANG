@@ -10,6 +10,16 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+async function ensureRequiredColumns() {
+  try {
+    await query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS username VARCHAR(50) NULL UNIQUE`);
+    await query(`ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS purpose VARCHAR(30) NOT NULL DEFAULT 'BOOKING'`);
+    console.log("✅ DB schema compatibility check passed");
+  } catch (err) {
+    console.warn("⚠️ Schema compatibility check skipped or failed:", err.message || err);
+  }
+}
+
 pool.query("SELECT 1", (err) => {
   if (err) {
     console.error("❌ Database Error");
@@ -17,6 +27,7 @@ pool.query("SELECT 1", (err) => {
     return;
   }
   console.log("✅ MySQL Connected");
+  ensureRequiredColumns();
 });
 
 // پکیج کردن query برای استفاده آسان با Promise
