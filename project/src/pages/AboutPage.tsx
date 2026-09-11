@@ -2,12 +2,19 @@ import { Link } from 'react-router-dom';
 import { Home, Sparkles, MapPin, HeartHandshake, Wallet, TreePine, CheckCircle } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import { whyChooseUs } from '../data/hotel';
+import SEO from '../components/SEO';
 
 const iconMap = { Sparkles, MapPin, HeartHandshake, Wallet };
 
 export default function AboutPage() {
   return (
     <div className="pt-20">
+      <SEO
+        title="درباره هتل باغ سرهنگ بابل"
+        description="هتل باغ سرهنگ بابل در سال ۱۳۹۵ در دل فضایی جنگلی افتتاح شد. ۹ باب اتاق متنوع، تمیزی عالی، رفتار خوب پرسنل و موقعیت مکانی عالی در ابتدای جنگل بزچفت."
+        canonical="/about"
+        ogImage="/images/hotel/site2.jpg"
+      />
       {/* Header */}
       <section className="relative py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0">

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Home, Car, Utensils, Coffee, Clock, Shirt, Sunrise, Wind, Bath, Trees, Tent, PhoneCall, type LucideIcon } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import { facilities } from '../data/hotel';
+import SEO from '../components/SEO';
 
 const iconMap: Record<string, LucideIcon> = {
   Car, Utensils, Home, Coffee, Clock, Shirt, Sunrise, Wind, Bath, Trees, Tent, PhoneCall,
@@ -10,6 +11,12 @@ const iconMap: Record<string, LucideIcon> = {
 export default function FacilitiesPage() {
   return (
     <div className="pt-20">
+      <SEO
+        title="امکانات هتل باغ سرهنگ بابل"
+        description="امکانات هتل باغ سرهنگ بابل: پارکینگ، رستوران، لابی، پذیرش ۲۴ ساعته، چایخانه سنتی، لاندری، صبحانه، تهویه مطبوع، پارک کودک و تاکسی سرویس."
+        canonical="/facilities"
+        ogImage="/images/hotel/eghamat-11.jpg"
+      />
       {/* Header */}
       <section className="relative py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0">

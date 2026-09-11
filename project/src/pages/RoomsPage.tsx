@@ -5,6 +5,7 @@ import ScrollReveal from '../components/ScrollReveal';
 import RoomCard from '../components/RoomCard';
 import { getRooms, type Room } from '../services/api';
 import { rooms as staticRooms } from '../data/rooms';
+import SEO from '../components/SEO';
 
 export default function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -27,6 +28,12 @@ export default function RoomsPage() {
 
   return (
     <div className="pt-20">
+      <SEO
+        title="اتاق‌های هتل باغ سرهنگ بابل"
+        description="اتاق‌های متنوع و تمیز هتل باغ سرهنگ بابل: اتاق دوتخته، طرح سنتی، سوئیت سه تخته و سوئیت پنج نفره. رزرو آنلاین با قیمت مناسب."
+        canonical="/rooms"
+        ogImage="/images/hotel/eghamat-01.jpg"
+      />
       <section className="relative py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0">
           <img

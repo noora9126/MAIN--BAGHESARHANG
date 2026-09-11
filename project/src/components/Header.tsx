@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Phone, Instagram, Calendar } from 'lucide-react';
+import { Menu, X, Phone, Instagram, Calendar, LogOut, User, LayoutDashboard } from 'lucide-react';
 import { hotelInfo } from '../data/hotel';
+import { useCustomerAuth } from '@/features/customerAuth/CustomerAuthProvider';
 
 const navLinks = [
   { label: 'خانه', path: '/' },
@@ -17,8 +18,10 @@ const navLinks = [
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { customer, logout } = useCustomerAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -28,7 +31,13 @@ export default function Header() {
 
   useEffect(() => {
     setMenuOpen(false);
+    setProfileOpen(false);
   }, [location.pathname]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/');
+  }, [logout, navigate]);
 
   const isHome = location.pathname === '/';
   const showSolid = scrolled || !isHome;
@@ -79,6 +88,82 @@ export default function Header() {
 
           {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-2 shrink-0">
+            {customer ? (
+              <div className="relative">
+                <button
+                  onClick={() => setProfileOpen(!profileOpen)}
+                  className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-all duration-300 ${
+                    showSolid ? 'bg-forest-50 hover:bg-forest-100 text-forest-700' : 'bg-white/15 hover:bg-white/25 text-white'
+                  }`}
+                >
+                  <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                    showSolid ? 'bg-forest-600 text-white' : 'bg-white/30 text-white'
+                  }`}>
+                    {(customer.full_name || 'م').charAt(0)}
+                  </div>
+                  <span className="hidden xl:inline">{customer.full_name}</span>
+                </button>
+
+                {profileOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
+                    <div className="absolute left-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-forest-100 bg-white shadow-xl shadow-forest-900/10">
+                      <div className="border-b border-forest-50 px-4 py-3">
+                        <p className="text-sm font-bold text-forest-800">{customer.full_name}</p>
+                        <p className="text-xs text-forest-400" dir="ltr">{customer.mobile}</p>
+                      </div>
+                      <div className="py-1">
+                        <button
+                          onClick={() => { navigate('/account'); setProfileOpen(false); }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-forest-700 hover:bg-forest-50 transition-colors"
+                        >
+                          <LayoutDashboard size={16} />
+                          پنل کاربری
+                        </button>
+                        <button
+                          onClick={() => { navigate('/account/reservations'); setProfileOpen(false); }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-forest-700 hover:bg-forest-50 transition-colors"
+                        >
+                          <Calendar size={16} />
+                          رزروهای من
+                        </button>
+                        <button
+                          onClick={() => { navigate('/account/profile'); setProfileOpen(false); }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-forest-700 hover:bg-forest-50 transition-colors"
+                        >
+                          <User size={16} />
+                          پروفایل
+                        </button>
+                      </div>
+                      <div className="border-t border-forest-50 py-1">
+                        <button
+                          onClick={() => { handleLogout(); setProfileOpen(false); }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <LogOut size={16} />
+                          خروج از حساب
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => navigate('/login')}
+                  className="rounded-full border border-forest-200 bg-white/60 px-4 py-2 text-sm font-medium text-forest-700 transition-all duration-300 hover:bg-white"
+                >
+                  ورود
+                </button>
+                <button
+                  onClick={() => navigate('/signup')}
+                  className="rounded-full bg-forest-700 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-forest-800"
+                >
+                  عضویت
+                </button>
+              </>
+            )}
             <a
               href={hotelInfo.instagramUrl}
               target="_blank"
@@ -129,6 +214,57 @@ export default function Header() {
               </Link>
             ))}
             <div className="pt-2 space-y-2 border-t border-forest-100">
+              {customer ? (
+                <>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-forest-600 text-sm font-bold text-white">
+                      {(customer.full_name || 'م').charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-forest-800 truncate">{customer.full_name}</p>
+                      <p className="text-xs text-forest-400" dir="ltr">{customer.mobile}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/account')}
+                    className="flex w-full items-center gap-3 px-4 py-3 rounded-xl bg-forest-50 text-forest-700 text-sm font-medium"
+                  >
+                    <LayoutDashboard size={18} />
+                    پنل کاربری
+                  </button>
+                  <button
+                    onClick={() => navigate('/account/reservations')}
+                    className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-forest-600 hover:bg-forest-50 text-sm font-medium"
+                  >
+                    <Calendar size={18} />
+                    رزروهای من
+                  </button>
+                  <button
+                    onClick={() => { handleLogout(); setMenuOpen(false); }}
+                    className="flex w-full items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 text-sm font-medium"
+                  >
+                    <LogOut size={18} />
+                    خروج از حساب
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => navigate('/login')}
+                      className="rounded-xl border border-forest-200 bg-white px-3 py-3 text-sm font-medium text-forest-700"
+                    >
+                      ورود
+                    </button>
+                    <button
+                      onClick={() => navigate('/signup')}
+                      className="rounded-xl bg-forest-700 px-3 py-3 text-sm font-medium text-white"
+                    >
+                      عضویت
+                    </button>
+                  </div>
+                </>
+              )}
               <a
                 href={hotelInfo.instagramUrl}
                 target="_blank"
@@ -146,7 +282,7 @@ export default function Header() {
                 رزرو اتاق
               </button>
               <a
-                href={`tel:${hotelInfo.phone}`}
+                href={hotelInfo.phoneLink}
                 className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-forest-50 text-forest-700 text-sm font-medium"
               >
                 <Phone size={16} />

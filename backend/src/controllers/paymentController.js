@@ -2,6 +2,12 @@ const { query } = require("../config/db");
 const { requestPayment, verifyPayment, zarinpalConfigured } = require("../services/zarinpalService");
 const { sendPaymentConfirmed } = require("../services/smsService");
 const { createNotification } = require("../services/notificationService");
+const {
+  createVarizaPayment,
+  handleVarizaWebhook,
+  getVarizaPaymentStatus,
+} = require("../services/paymentService");
+const { logPaymentError, logPaymentWarning } = require("../utils/paymentLogger");
 
 // ─────────────── درخواست پرداخت (رفتن به درگاه) ───────────────
 const requestPaymentController = async (req, res) => {
@@ -153,9 +159,17 @@ const verifyPaymentController = async (req, res) => {
   }
 };
 
-// تایید دستی پرداخت در حالت توسعه (بدون زرین‌پال)
+// تایید دستی پرداخت — به‌طور پیش‌فرض برای همیشه قفل است.
+// فقط با ENABLE_MANUAL_PAYMENT_CONFIRM=1 در .env (حالت تست توسعه‌دهنده) باز می‌شود.
 const manualConfirmPayment = async (req, res) => {
   try {
+    const manualAllowed = process.env.ENABLE_MANUAL_PAYMENT_CONFIRM === "1";
+    if (!manualAllowed) {
+      return res.status(403).json({
+        success: false,
+        message: "تایید دستی پرداخت غیرفعال است",
+      });
+    }
     const reservationId = Number(req.body.reservationId);
     if (!reservationId) {
       return res.status(400).json({ success: false, message: "شناسه رزرو الزامی است" });
@@ -203,3 +217,107 @@ const manualConfirmPayment = async (req, res) => {
 };
 
 module.exports = { requestPaymentController, verifyPaymentController, manualConfirmPayment };
+
+/* ═══════════════════ واریزا (کارت‌به‌کارت) ═══════════════════ */
+
+const VARIZA_CREATE_ERROR_STATUS = {
+  VARIZA_NOT_CONFIGURED: 503,
+  VARIZA_BAD_CONFIG: 500,
+  VARIZA_AMOUNT_TOO_LOW: 400,
+  RESERVATION_INVALID: 400,
+  RESERVATION_NOT_FOUND: 404,
+  RESERVATION_ALREADY_PAID: 409,
+  RESERVATION_CANCELLED: 409,
+  VARIZA_AUTH_FAILED: 502,
+  VARIZA_VALIDATION: 502,
+  VARIZA_INVALID_RESPONSE: 502,
+  VARIZA_RATE_LIMITED: 429,
+  VARIZA_TIMEOUT: 504,
+  VARIZA_UNAVAILABLE: 503,
+};
+
+// POST /api/payments/variza/create  — ساخت لینک پرداخت اختصاصی سفارش
+const createVarizaPaymentController = async (req, res) => {
+  try {
+    const reservationId = Number(req.body?.reservationId);
+    const result = await createVarizaPayment(reservationId);
+    return res.json({
+      success: true,
+      payUrl: result.payUrl,
+      slug: result.slug,
+      amount: result.amount,
+      expiresAt: result.expiresAt,
+      reused: Boolean(result.reused),
+      reservationNumber: result.reservationNumber,
+      message: result.reused
+        ? "لینک پرداخت فعال شما بازگردانده شد"
+        : "لینک پرداخت ساخته شد",
+    });
+  } catch (err) {
+    const status =
+      VARIZA_CREATE_ERROR_STATUS[err.code] || Number(err.status) || 500;
+    if (!VARIZA_CREATE_ERROR_STATUS[err.code]) {
+      logPaymentError("payment_create_controller_failed", { reservationId: req.body?.reservationId }, err);
+      return res.status(500).json({ success: false, message: "خطا در ایجاد پرداخت. لطفاً دوباره تلاش کنید" });
+    }
+    logPaymentWarning("payment_create_variza_error", {
+      reservationId: req.body?.reservationId,
+      code: err.code,
+    });
+    // err.message برای خطاهای نگاشت‌شده، پیام امن فارسی است
+    return res.status(status).json({ success: false, message: err.message });
+  }
+};
+
+// POST /api/payments/variza/webhook — Webhook امضاشده واریزا (عمومی، بدون Login)
+const varizaWebhookController = async (req, res) => {
+  const signature = req.get("X-Webhook-Signature");
+  const deliveryId = req.get("X-Delivery-Id");
+  const rawBody = req.rawBody || Buffer.from(JSON.stringify(req.body ?? {}), "utf8");
+
+  const result = await handleVarizaWebhook({ rawBody, signature, deliveryId });
+
+  switch (result.ok) {
+    case "invalid_signature":
+    case "bad_payload":
+      return res.status(400).json({ received: false });
+    case "amount_mismatch":
+      return res.status(409).json({ received: false, reason: "amount_mismatch" });
+    case "processing_failed":
+      return res.status(500).json({ received: false });
+    default:
+      // fulfilled / duplicate / already_paid / unknown_slug / ignored_event → ACK
+      return res.status(200).json({ received: true });
+  }
+};
+
+// GET /api/payments/variza/status?reservationId= — بررسی واقعی وضعیت پس از برگشت
+const varizaPaymentStatusController = async (req, res) => {
+  try {
+    const reservationId = Number(req.query.reservationId);
+    const status = await getVarizaPaymentStatus(reservationId);
+    return res.json(status);
+  } catch (err) {
+    if (err.code === "RESERVATION_INVALID") {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    logPaymentError("payment_status_controller_failed", { reservationId: req.query.reservationId }, err);
+    return res.status(500).json({ success: false, message: "خطا در دریافت وضعیت پرداخت" });
+  }
+};
+
+// GET /api/payments/variza/config-status — فقط boolean؛ برای تشخیص تنظیم بودن درگاه
+const varizaConfigStatusController = async (_req, res) => {
+  const { apiKeyConfigured, webhookSecretConfigured, varizaConfigured } = require("../services/varizaService");
+  return res.json({
+    success: true,
+    apiKeySet: apiKeyConfigured(),
+    webhookSecretSet: webhookSecretConfigured(),
+    configured: varizaConfigured(),
+  });
+};
+
+module.exports.createVarizaPaymentController = createVarizaPaymentController;
+module.exports.varizaWebhookController = varizaWebhookController;
+module.exports.varizaPaymentStatusController = varizaPaymentStatusController;
+module.exports.varizaConfigStatusController = varizaConfigStatusController;

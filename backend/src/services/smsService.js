@@ -1,6 +1,6 @@
 const axios = require("axios");
 const { query } = require("../config/db");
-const { formatPriceToman, jDate, toFaDigits } = require("../utils/helpers");
+const { formatPriceToman, jDate, toFaDigits, toEnDigits } = require("../utils/helpers");
 
 // ─────────────── پیکربندی ملی‌پیامک ───────────────
 // روش اصلی: کنسول ملی‌پیامک (REST + Auth Token)
@@ -11,7 +11,9 @@ const { formatPriceToman, jDate, toFaDigits } = require("../utils/helpers");
 
 const CONSOLE_API_URL = "https://console.melipayamak.com/api/send/simple";
 const CONSOLE_SHARED_API_URL = "https://console.melipayamak.com/api/send/shared";
-const TIMEOUT_MS = 15000;
+const CONSOLE_TIMEOUT_MS = 30000;
+const CLASSIC_TIMEOUT_MS = 30000;
+const SHARED_RETRY_COUNT = 2;
 
 let melipayamakApi = null; // نمونه کلاسیک (fallback)
 
@@ -28,6 +30,16 @@ function hasCredentials() {
 
 function melipayamakSender() {
   return (process.env.MELIPAYAMAK_SENDER || "").trim();
+}
+
+function normalizePhoneForSms(phone) {
+  const digits = toEnDigits(phone).replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("98")) return `0${digits.slice(2)}`;
+  if (digits.startsWith("+98")) return `0${digits.slice(3)}`;
+  if (digits.startsWith("0")) return digits;
+  if (digits.length === 10) return `0${digits}`;
+  return digits;
 }
 
 // شبیه‌سازی فقط زمانی فعال است که صریحاً با SMS_SIMULATE=1 خواسته شده باشد
@@ -68,41 +80,57 @@ async function logSms({ phone, message, type, reservationId = null, status = "SE
 // ارسال از طریق کنسول ملی‌پیامک (Auth Token) — متد simple
 async function sendViaConsole(phone, sender, message) {
   const token = apiToken();
-  const body = { to: phone, text: message };
-  // اگر شماره ارسال‌کننده خالی باشد، خط پیش‌فرض اکانت استفاده می‌شود
+  const mobile = normalizePhoneForSms(phone);
+  const body = { to: mobile, text: message };
   if (sender) body.from = sender;
+
+  console.log(`[SMS] sendViaConsole: to=${mobile}, from=${sender || "auto"}`);
   const { data } = await axios.post(
     `${CONSOLE_API_URL}/${token}`,
     body,
-    { timeout: TIMEOUT_MS }
+    {
+      timeout: CONSOLE_TIMEOUT_MS,
+      headers: { "Content-Type": "application/json" },
+    }
   );
+  console.log(`[SMS] sendViaConsole response:`, JSON.stringify(data));
 
-  const recId = data && data.recId;
-  const status = data && data.status;
+  const recId = data && (data.recId ?? data.id ?? data.recid ?? data.messageId);
+  const status = data && (data.status ?? data.result ?? data.error ?? data.message);
 
   if (recId && String(recId) !== "0") {
     return { success: true, recId: String(recId) };
   }
+  if (typeof data === "string" && /ok|success|sent/i.test(data)) {
+    return { success: true, recId: data };
+  }
   throw new Error(status || "پاسخ نامعتبر از کنسول ملی‌پیامک");
 }
 
-// ارسال از طریق کنسول ملی‌پیامک (Auth Token) — با متد shared (پترن تأییدشده)
-// پیام‌ها از مسیر ارسال «خدماتی» می‌روند و برای همه (حتماً‌ آن‌هایی که تبلیغاتی را
-// بسته/بلک‌لیست کرده‌اند) ارسال می‌شود.
+// ارسال از طریق کنسول ملی‌پیامک (Auth Token) — با متد shared (پترن خدماتی)
+// پیام‌ها از مسیر ارسال «خدماتی» می‌روند و برای همه (حتی آن‌هایی که تبلیغاتی را
+// بسته/بلک‌لیست کرده‌اند) ارسال می‌شود. این متد برای OTP باید در اولویت باشد.
 async function sendViaShared(phone, bodyId, args) {
   const token = apiToken();
-  const body = { bodyId, to: phone, args };
+  const mobile = normalizePhoneForSms(phone);
+  const body = { bodyId, to: mobile, args };
+  console.log(`[SMS] sendViaShared (خدماتی): to=${mobile}, bodyId=${bodyId}, args=`, args);
   const { data } = await axios.post(
     `${CONSOLE_SHARED_API_URL}/${token}`,
     body,
-    { timeout: TIMEOUT_MS }
+    { timeout: CONSOLE_TIMEOUT_MS, headers: { "Content-Type": "application/json" } }
   );
+  console.log(`[SMS] sendViaShared response:`, JSON.stringify(data));
 
-  const recId = data && data.recId;
-  const status = data && data.status;
+  const recId = data && (data.recId ?? data.recid ?? data.id ?? data.Value);
+  const status = data && (data.status ?? data.StrRetStatus ?? data.message);
 
   if (recId && String(recId) !== "0") {
     return { success: true, recId: String(recId) };
+  }
+  // برخی پاسخ‌ها recId ندارند اما status=1 یا ok دارند
+  if (status && /ok|success|sent|1/i.test(String(status))) {
+    return { success: true, recId: String(recId || status) };
   }
   throw new Error(status || "پاسخ نامعتبر از کنسول ملی‌پیامک (shared)");
 }
@@ -112,24 +140,89 @@ function otpBodyId() {
   return (process.env.MELIPAYAMAK_OTP_BODY_ID || "").trim();
 }
 
-// ارسال از طریق وب‌سرویس کلاسیک (Username/Password) — حالت جایگزین
+// ارسال از طریق وب‌سرویس کلاسیک (Username/Password) — حالت تبلیغاتی
 async function sendViaClassic(phone, sender, message) {
-  if (!initMelipayamakFallback()) {
-    throw new Error("ملی‌پیامک پیکربندی نشده است");
+  if (!hasCredentials()) {
+    throw new Error("ملی‌پیامک کلاسیک پیکربندی نشده است");
   }
-  const data = await melipayamakApi.send(phone, sender, message);
 
-  // پاسخ موفق وب‌سرویس کلاسیک: { Value, RetStatus: 1, StrRetStatus: "Ok" }
-  const ok =
-    data &&
-    (Number(data.RetStatus ?? data.retStatus) === 1 ||
-      String(data.StrRetStatus ?? data.strRetStatus ?? "").toLowerCase() === "ok");
+  const mobile = normalizePhoneForSms(phone);
+  const username = (process.env.MELIPAYAMAK_USERNAME || "").trim();
+  const password = (process.env.MELIPAYAMAK_PASSWORD || "").trim();
+  const payload = new URLSearchParams({
+    username,
+    password,
+    to: mobile,
+    from: sender || "",
+    text: message,
+    isflash: "false",
+  });
 
+  console.log(`[SMS] sendViaClassic (تبلیغاتی): to=${mobile}, from=${sender || "auto"}`);
+  const { data } = await axios.post(
+    "https://rest.payamak-panel.com/api/SendSMS/SendSMS",
+    payload.toString(),
+    {
+      timeout: CLASSIC_TIMEOUT_MS,
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+    }
+  );
+  console.log(`[SMS] sendViaClassic response:`, JSON.stringify(data));
+
+  const retStatus = data && (data.RetStatus ?? data.retStatus ?? data.status ?? data.Status);
+  const strRetStatus = data && (data.StrRetStatus ?? data.strRetStatus ?? data.message ?? "");
+  const value = data && (data.Value ?? data.value ?? data.recId ?? data.recid);
+
+  const ok = Number(retStatus) === 1 || String(strRetStatus).toLowerCase() === "ok" || String(value).length > 0;
   if (ok) {
-    return { success: true, recId: String(data.Value ?? data.recId ?? "") };
+    return { success: true, recId: String(value || "") };
   }
-  const errCode = (data && (data.StrRetStatus ?? data.Error ?? data.error)) || "نامشخص";
-  throw new Error(`خطای ملی پیامک: ${errCode}`);
+
+  throw new Error(`خطای ملی پیامک: ${strRetStatus || JSON.stringify(data) || "نامشخص"}`);
+}
+
+// ارسال از طریق وب‌سرویس کلاسیک (Username/Password) — حالت خدماتی (پترن)
+// از متد BaseServiceNumber استفاده می‌کند که پیام از مسیر خدماتی ارسال می‌شود
+// و حتی برای گیرنده‌هایی که تبلیغاتی را بسته‌اند نیز ارسال می‌شود.
+// endpoint: POST https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber
+// نکته: فیلد text مقدار جایگزین {0} در پترن را مشخص می‌کند (نه arg0)
+async function sendViaClassicService(phone, bodyId, code) {
+  if (!hasCredentials()) {
+    throw new Error("ملی‌پیامک کلاسیک پیکربندی نشده است");
+  }
+
+  const mobile = normalizePhoneForSms(phone);
+  const username = (process.env.MELIPAYAMAK_USERNAME || "").trim();
+  const password = (process.env.MELIPAYAMAK_PASSWORD || "").trim();
+  const payload = new URLSearchParams({
+    username,
+    password,
+    to: mobile,
+    text: String(code),
+    bodyId: String(bodyId),
+  });
+
+  console.log(`[SMS] sendViaClassicService (کلاسیک-خدماتی): to=${mobile}, bodyId=${bodyId}, text=${code}`);
+  const { data } = await axios.post(
+    "https://rest.payamak-panel.com/api/SendSMS/BaseServiceNumber",
+    payload.toString(),
+    {
+      timeout: CLASSIC_TIMEOUT_MS,
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+    }
+  );
+  console.log(`[SMS] sendViaClassicService response:`, JSON.stringify(data));
+
+  const retStatus = data && (data.RetStatus ?? data.retStatus ?? data.status ?? data.Status);
+  const strRetStatus = data && (data.StrRetStatus ?? data.strRetStatus ?? data.message ?? "");
+  const value = data && (data.Value ?? data.value ?? data.recId ?? data.recid);
+
+  const ok = Number(retStatus) === 1 || String(strRetStatus).toLowerCase() === "ok" || String(value).length > 0;
+  if (ok) {
+    return { success: true, recId: String(value || "") };
+  }
+
+  throw new Error(`خطای ملی پیامک (BaseServiceNumber): ${strRetStatus || JSON.stringify(data) || "نامشخص"}`);
 }
 
 function errorMessage(err) {
@@ -141,40 +234,28 @@ function errorMessage(err) {
 }
 
 async function sendSms(phone, message, { type = "CUSTOM", reservationId = null } = {}) {
-  // حالت شبیه‌سازی (فقط برای توسعه/تست)
+  const normalizedPhone = normalizePhoneForSms(phone);
+
   if (simulateEnabled()) {
-    await logSms({ phone, message, type, reservationId, status: "SENT" });
+    await logSms({ phone: normalizedPhone, message, type, reservationId, status: "SENT" });
     return { simulated: true, success: true };
   }
 
-  // در پروداکشن باید اعتبارنامه وجود داشته باشد
   if (!smsEnabled()) {
     const msg = "ملی‌پیامک پیکربندی نشده است (توکن یا نام کاربری/رمز عبور را در .env تنظیم کنید)";
-    console.error("خطا در ارسال پیامک به", phone, ":", msg);
-    await logSms({ phone, message, type, reservationId, status: "FAILED", errorMessage: msg });
+    console.error("خطا در ارسال پیامک به", normalizedPhone, ":", msg);
+    await logSms({ phone: normalizedPhone, message, type, reservationId, status: "FAILED", errorMessage: msg });
     return { success: false, simulated: false, error: msg };
   }
 
   const sender = melipayamakSender();
   const errors = {};
 
-  // روش اصلی: کنسول (Auth Token)
-  if (apiToken()) {
-    try {
-      const result = await sendViaConsole(phone, sender, message);
-      await logSms({ phone, message, type, reservationId, status: "SENT" });
-      return { success: true, simulated: false, ...result };
-    } catch (err) {
-      errors.console = errorMessage(err);
-      console.error("ارسال از طریق کنسول ملی‌پیامک ناموفق بود، تلاش با روش کلاسیک:", errors.console);
-    }
-  }
-
-  // روش جایگزین: وب‌سرویس کلاسیک (Username/Password)
+  // روش اول: وب‌سرویس کلاسیک (Username/Password) — قابل‌اطمینان‌ترین روش
   if (hasCredentials()) {
     try {
-      const result = await sendViaClassic(phone, sender, message);
-      await logSms({ phone, message, type, reservationId, status: "SENT" });
+      const result = await sendViaClassic(normalizedPhone, sender, message);
+      await logSms({ phone: normalizedPhone, message, type, reservationId, status: "SENT" });
       return { success: true, simulated: false, ...result };
     } catch (err) {
       errors.classic = errorMessage(err);
@@ -182,16 +263,28 @@ async function sendSms(phone, message, { type = "CUSTOM", reservationId = null }
     }
   }
 
+  // روش دوم: کنسول (Auth Token)
+  if (apiToken()) {
+    try {
+      const result = await sendViaConsole(normalizedPhone, sender, message);
+      await logSms({ phone: normalizedPhone, message, type, reservationId, status: "SENT" });
+      return { success: true, simulated: false, ...result };
+    } catch (err) {
+      errors.console = errorMessage(err);
+      console.error("ارسال از طریق کنسول ملی‌پیامک ناموفق بود:", errors.console);
+    }
+  }
+
   const msg = errors.classic || errors.console || "خطای ناشناخته ملی پیامک";
-  console.error("خطا در ارسال پیامک به", phone, ":", msg);
-  await logSms({ phone, message, type, reservationId, status: "FAILED", errorMessage: msg });
+  console.error("خطا در ارسال پیامک به", normalizedPhone, ":", msg);
+  await logSms({ phone: normalizedPhone, message, type, reservationId, status: "FAILED", errorMessage: msg });
   return { success: false, simulated: false, error: msg };
 }
 
 // ---------- قالب‌های پیامک ----------
 
 function otpMessage(code) {
-  return `سلام! کد تأیید شماره تلفن شما: ${toFaDigits(code)}\nاین کد ۲ دقیقه معتبر است و فقط یکبار قابل استفاده است.\nهتل باغ سرهنگ`;
+  return `مهمان گرامی هتل باغ سرهنگ کد تایید شما ${toFaDigits(code)} می باشد`;
 }
 
 function reservationConfirmedMessage(guestName, reservationNumber, roomName, checkIn, checkOut, nights, totalPrice) {
@@ -210,28 +303,106 @@ function checkOutMessage(reservationNumber) {
   return `سپاس از اقامت شما در هتل باغ سرهنگ!\nرزرو: ${reservationNumber}\nاگر سوالی دارید: 09112106640`;
 }
 
-async function sendOtp(phone, code) {
-  const bodyId = otpBodyId();
+function cancellationRequestedMessage(reservationNumber, roomName, totalPrice) {
+  return `درخواست لغو رزرو ${reservationNumber}\nاتاق: ${roomName}\nمبلغ: ${formatPriceToman(totalPrice)}\nوضعیت: در انتظار بررسی مدیریت\nهتل باغ سرهنگ`;
+}
 
-  // حالت شبیه‌سازی (فقط برای توسعه/تست)
+function refundCompletedMessage(reservationNumber, totalPrice) {
+  return `بازپرداخت رزرو ${reservationNumber}\nمبلغ: ${formatPriceToman(totalPrice)}\nوضعیت: واریز انجام شد\nاز انتخاب هتل باغ سرهنگ سپاسگزاریم`;
+}
+
+function cancellationRejectedMessage(reservationNumber, reason) {
+  return `درخواست لغو رزرو ${reservationNumber}\nوضعیت: رد شد\nدلیل: ${reason || 'بدون دلیل'}\nهتل باغ سرهنگ`;
+}
+
+async function sendOtp(phone, code) {
+  const normalizedPhone = normalizePhoneForSms(phone);
+  const message = otpMessage(code);
+
   if (simulateEnabled()) {
-    await logSms({ phone, message: otpMessage(code), type: "OTP", status: "SENT" });
+    await logSms({ phone: normalizedPhone, message, type: "OTP", status: "SENT" });
     return { simulated: true, success: true };
   }
 
-  // روش اصلی: پترنِ «خدماتی» تأییدشده (برای همه ارسال می‌شود)
-  if (apiToken() && bodyId) {
-    try {
-      const result = await sendViaShared(phone, Number(bodyId), [String(code)]);
-      await logSms({ phone, message: otpMessage(code), type: "OTP", status: "SENT" });
-      return { success: true, simulated: false, ...result };
-    } catch (err) {
-      console.error("ارسال کد تأیید از طریق پترن ناموفق بود، تلاش با روش معمول:", errorMessage(err));
+  if (!smsEnabled()) {
+    const msg = "ملی‌پیامک پیکربندی نشده است";
+    console.error(`[SMS] ${msg}`);
+    await logSms({ phone: normalizedPhone, message, type: "OTP", status: "FAILED", errorMessage: msg });
+    return { success: false, simulated: false, error: msg };
+  }
+
+  const bodyId = otpBodyId();
+  const sender = melipayamakSender();
+  const errors = {};
+
+  // ─── اولویت ۱: ارسال خدماتی از طریق API کلاسیک (BaseServiceNumber) ───
+  // کنسول API از سرور فعلی unreachable هست، ولی rest.payamak-panel.com کار میکنه
+  // BaseServiceNumber پیام را از مسیر خدماتی ارسال می‌کند و به همه می‌رسد
+  if (hasCredentials() && bodyId) {
+    for (let attempt = 1; attempt <= SHARED_RETRY_COUNT; attempt++) {
+      try {
+        const result = await sendViaClassicService(normalizedPhone, bodyId, code);
+        await logSms({ phone: normalizedPhone, message, type: "OTP", status: "SENT" });
+        console.log(`[SMS] ✅ OTP sent via CLASSIC-SERVICE (کلاسیک-خدماتی) to ${normalizedPhone}, bodyId=${bodyId}, recId=${result.recId} (attempt ${attempt})`);
+        return { success: true, simulated: false, ...result };
+      } catch (err) {
+        errors[`classic_service_attempt_${attempt}`] = errorMessage(err);
+        console.error(`[SMS] CLASSIC-SERVICE attempt ${attempt}/${SHARED_RETRY_COUNT} failed for ${normalizedPhone} bodyId=${bodyId}:`, errorMessage(err));
+        if (attempt < SHARED_RETRY_COUNT) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+      }
     }
   }
 
-  // روش جایگزین: ارسال ساده (ممکن است به برخی گیرندگان نخورد)
-  return sendSms(phone, otpMessage(code), { type: "OTP" });
+  // ─── اولویت ۲: ارسال خدماتی از طریق کنسول (shared) — اگر کنسول API در دسترس باشد ───
+  if (apiToken() && bodyId) {
+    for (let attempt = 1; attempt <= SHARED_RETRY_COUNT; attempt++) {
+      try {
+        const result = await sendViaShared(normalizedPhone, Number(bodyId), [String(code)]);
+        await logSms({ phone: normalizedPhone, message, type: "OTP", status: "SENT" });
+        console.log(`[SMS] ✅ OTP sent via SHARED (خدماتی کنسول) to ${normalizedPhone}, bodyId=${bodyId}, recId=${result.recId} (attempt ${attempt})`);
+        return { success: true, simulated: false, ...result };
+      } catch (err) {
+        errors[`shared_attempt_${attempt}`] = errorMessage(err);
+        console.error(`[SMS] SHARED attempt ${attempt}/${SHARED_RETRY_COUNT} failed for ${normalizedPhone} bodyId=${bodyId}:`, errorMessage(err));
+        if (attempt < SHARED_RETRY_COUNT) {
+          await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
+      }
+    }
+  }
+
+  // ─── اولویت ۳: کنسول simple (تبلیغاتی) — فقط fallback اگر خدماتی شکست خورد ───
+  if (apiToken()) {
+    try {
+      const result = await sendViaConsole(normalizedPhone, sender, message);
+      await logSms({ phone: normalizedPhone, message, type: "OTP", status: "SENT" });
+      console.log(`[SMS] ⚠️ OTP sent via CONSOLE (تبلیغاتی fallback) to ${normalizedPhone}, recId=${result.recId}`);
+      return { success: true, simulated: false, ...result };
+    } catch (err) {
+      errors.console = errorMessage(err);
+      console.error(`[SMS] CONSOLE (تبلیغاتی) failed for ${normalizedPhone}:`, errorMessage(err));
+    }
+  }
+
+  // ─── اولویت ۴: سرویس کلاسیک تبلیغاتی — آخرین fallback ───
+  if (hasCredentials()) {
+    try {
+      const result = await sendViaClassic(normalizedPhone, sender, message);
+      await logSms({ phone: normalizedPhone, message, type: "OTP", status: "SENT" });
+      console.log(`[SMS] ⚠️ OTP sent via CLASSIC (تبلیغاتی fallback) to ${normalizedPhone}, recId=${result.recId}`);
+      return { success: true, simulated: false, ...result };
+    } catch (err) {
+      errors.classic = errorMessage(err);
+      console.error(`[SMS] CLASSIC (تبلیغاتی) failed for ${normalizedPhone}:`, errorMessage(err));
+    }
+  }
+
+  const lastError = errors.classic_service_attempt_1 || errors.classic || errors.console || errors.shared_attempt_1 || "خطای ناشناخته ملی پیامک";
+  console.error(`[SMS] ❌ All methods failed for ${normalizedPhone}:`, lastError);
+  await logSms({ phone: normalizedPhone, message, type: "OTP", status: "FAILED", errorMessage: `All methods failed: ${lastError}` });
+  return { success: false, simulated: false, error: "ارسال پیامک ناموفق بود" };
 }
 
 async function sendReservationConfirmed({ phone, guestName, reservationNumber, roomName, checkIn, checkOut, nights, totalPrice, reservationId }) {
@@ -263,6 +434,27 @@ async function sendCheckOutSms({ phone, reservationNumber, reservationId }) {
   });
 }
 
+async function sendCancellationRequestedSms({ phone, reservationNumber, roomName, totalPrice, reservationId }) {
+  return sendSms(phone, cancellationRequestedMessage(reservationNumber, roomName, totalPrice), {
+    type: "CANCELLATION_REQUESTED",
+    reservationId,
+  });
+}
+
+async function sendRefundCompletedSms({ phone, reservationNumber, totalPrice, reservationId }) {
+  return sendSms(phone, refundCompletedMessage(reservationNumber, totalPrice), {
+    type: "REFUND_COMPLETED",
+    reservationId,
+  });
+}
+
+async function sendCancellationRejectedSms({ phone, reservationNumber, reason, reservationId }) {
+  return sendSms(phone, cancellationRejectedMessage(reservationNumber, reason), {
+    type: "CANCELLATION_REJECTED",
+    reservationId,
+  });
+}
+
 module.exports = {
   smsEnabled,
   simulateEnabled,
@@ -272,5 +464,8 @@ module.exports = {
   sendPaymentConfirmed,
   sendCheckInSms,
   sendCheckOutSms,
+  sendCancellationRequestedSms,
+  sendRefundCompletedSms,
+  sendCancellationRejectedSms,
   logSms,
 };

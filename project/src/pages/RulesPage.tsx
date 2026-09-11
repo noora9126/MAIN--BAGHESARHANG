@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { Home, LogIn, LogOut, XCircle, Baby, Ban, PawPrint, FileCheck, Users, type LucideIcon } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import { rules } from '../data/hotel';
+import SEO from '../components/SEO';
 
 const iconMap: Record<string, LucideIcon> = {
   LogIn, LogOut, XCircle, Baby, Ban, PawPrint, FileCheck, Users,
@@ -10,6 +11,12 @@ const iconMap: Record<string, LucideIcon> = {
 export default function RulesPage() {
   return (
     <div className="pt-20">
+      <SEO
+        title="قوانین هتل باغ سرهنگ بابل"
+        description="قوانین اقامت در هتل باغ سرهنگ بابل: ساعت ورود ۱۴:۰۰، خروج ۱۲:۰۰، کنسلی تا ۷۲ ساعت قبل بدون جریمه، کودک زیر ۲ سال رایگان."
+        canonical="/rules"
+        ogImage="/images/hotel/site7.jpg"
+      />
       {/* Header */}
       <section className="relative py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0">

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Loader2, MessageSquareText, Save } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { PageHeader } from '@/components/admin/PageHeader';
 import {
-  btnOutline,
   btnPrimary,
   Field,
   inputCls,
@@ -10,7 +9,6 @@ import {
 } from '@/components/admin/AdminUI';
 import {
   adminSettings,
-  adminTestSms,
   adminUpdateSettings,
   type Settings,
 } from '@/services/adminApi';
@@ -59,7 +57,6 @@ const GROUPS: { key: string; title: string; description: string; fields: { key: 
     description: 'کلید مرچنت زرین‌پال — تا وقتی تنظیم نشود، پرداخت به صورت دستی تایید می‌شود',
     fields: [
       { key: 'zarinpal_merchant_id', label: 'مرچنت زرین‌پال', dir: 'ltr' },
-      { key: 'zarinpal_sandbox', label: 'حالت آزمایشی (۱ = فعال)', dir: 'ltr' },
     ],
   },
 ];
@@ -68,8 +65,6 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<SettingsForm | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testPhone, setTestPhone] = useState('');
-  const [testing, setTesting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -102,22 +97,6 @@ export default function AdminSettingsPage() {
       toast.error(apiError(err));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleTestSms() {
-    if (!/^09\d{9}$/.test(testPhone)) {
-      toast.error('شماره موبایل معتبر وارد کنید');
-      return;
-    }
-    setTesting(true);
-    try {
-      const res = await adminTestSms(testPhone);
-      toast.success(res.simulated ? 'پیامک تست (حالت شبیه‌سازی) ارسال شد' : 'پیامک تست ارسال شد');
-    } catch (err) {
-      toast.error(apiError(err));
-    } finally {
-      setTesting(false);
     }
   }
 
@@ -154,28 +133,6 @@ export default function AdminSettingsPage() {
             </div>
           </section>
         ))}
-
-        <section className="rounded-2xl border border-forest-50 bg-white p-5 shadow-sm">
-          <h2 className="font-black text-forest-800">تست ارسال پیامک</h2>
-          <p className="mb-4 mt-0.5 text-xs text-forest-400">
-            یک پیامک تست به شماره خودتان بفرستید تا تنظیمات پیامک را بررسی کنید
-          </p>
-          <div className="flex max-w-md items-end gap-2">
-            <Field label="شماره موبایل" className="flex-1">
-              <input
-                className={inputCls}
-                value={testPhone}
-                onChange={(e) => setTestPhone(e.target.value)}
-                placeholder="0912..."
-                dir="ltr"
-              />
-            </Field>
-            <button type="button" className={btnOutline} onClick={handleTestSms} disabled={testing}>
-              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquareText className="h-4 w-4" />}
-              ارسال تست
-            </button>
-          </div>
-        </section>
       </div>
     </form>
   );

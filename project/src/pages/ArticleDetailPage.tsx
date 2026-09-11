@@ -4,6 +4,7 @@ import { Home, Calendar, Clock, User, Star, CheckCircle2 } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import ArticleCard from '../components/ArticleCard';
 import { getArticleBySlug, articles } from '../data/articles';
+import SEO, { buildArticleSchema } from '../components/SEO';
 
 export default function ArticleDetailPage() {
   const { slug } = useParams();
@@ -27,6 +28,7 @@ export default function ArticleDetailPage() {
   if (!article) {
     return (
       <div className="pt-32 pb-20 text-center">
+        <SEO title="مقاله یافت نشد" />
         <p className="text-forest-600 mb-4">مقاله مورد نظر یافت نشد.</p>
         <Link to="/magazine" className="btn-primary">بازگشت به مجله</Link>
       </div>
@@ -45,6 +47,13 @@ export default function ArticleDetailPage() {
 
   return (
     <div className="pt-20">
+      <SEO
+        title={article.title}
+        description={article.excerpt}
+        canonical={`/magazine/${article.slug}`}
+        ogImage={article.image}
+        schema={buildArticleSchema(article)}
+      />
       {/* Breadcrumb */}
       <div className="container-x px-4 sm:px-6 lg:px-8 py-4">
         <nav className="flex items-center gap-2 text-sm text-forest-500 flex-wrap">

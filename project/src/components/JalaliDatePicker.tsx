@@ -30,8 +30,10 @@ function isoOf(date: DateObject): string {
 }
 
 export default function JalaliDatePicker({ value, onChange, min, blocked, placeholder = 'انتخاب تاریخ', className = '' }: Props) {
+  const blockedKey = blocked ? Object.keys(blocked).sort().join(',') : '';
   return (
     <DatePicker
+      key={blockedKey}
       calendar={persian}
       locale={persian_fa}
       value={toPersianDate(value)}

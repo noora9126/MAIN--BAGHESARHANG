@@ -2,10 +2,17 @@ import { Link } from 'react-router-dom';
 import { Home, Phone, Mail, MapPin, Clock, Instagram } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import { hotelInfo } from '../data/hotel';
+import SEO from '../components/SEO';
 
 export default function ContactPage() {
   return (
     <div className="pt-20">
+      <SEO
+        title="تماس با هتل باغ سرهنگ بابل"
+        description="شماره تلفن، آدرس و اطلاعات تماس هتل باغ سرهنگ بابل. رزرو مستقیم با شماره ۰۹۱۱۲۱۰۶۶۴۰. آدرس: مازندران، بابل، ابتدای جنگل بزچفت."
+        canonical="/contact"
+        ogImage="/images/hotel/site13.jpg"
+      />
       {/* Header */}
       <section className="relative py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0">
@@ -48,8 +55,8 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-forest-800 mb-1">تلفن تماس</p>
-                  <a href={`tel:${hotelInfo.phone}`} className="block text-forest-600 hover:text-forest-700 transition-colors" dir="ltr">{hotelInfo.phone}</a>
-                  <a href={`tel:${hotelInfo.phone2}`} className="block text-forest-600 hover:text-forest-700 transition-colors" dir="ltr">{hotelInfo.phone2}</a>
+                  <a href={hotelInfo.phoneLink} className="block text-forest-600 hover:text-forest-700 transition-colors" dir="ltr">{hotelInfo.phone}</a>
+                  <a href={hotelInfo.phone2Link} className="block text-forest-600 hover:text-forest-700 transition-colors" dir="ltr">{hotelInfo.phone2}</a>
                 </div>
               </div>
 

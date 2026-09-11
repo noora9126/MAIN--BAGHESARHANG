@@ -15,4 +15,19 @@ const createNotification = async ({ type, title, message, refType = null, refId 
   }
 };
 
-module.exports = { createNotification };
+// ─────────────── ثبت اعلان مشتری ───────────────
+const createCustomerNotification = async ({ customerId, type, title, message, refType = null, refId = null }) => {
+  try {
+    const result = await query(
+      `INSERT INTO customer_notifications (customer_id, type, title, message, ref_type, ref_id, is_read)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+      [customerId, type, title, message, refType, refId]
+    );
+    return result.insertId;
+  } catch (err) {
+    console.error("createCustomerNotification error:", err);
+    return null;
+  }
+};
+
+module.exports = { createNotification, createCustomerNotification };

@@ -33,7 +33,7 @@ export default function FinalCta() {
               شروع رزرو
             </button>
             <a
-              href={`tel:${hotelInfo.phone}`}
+              href={hotelInfo.phoneLink}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/40 px-7 py-3 text-white font-medium backdrop-blur-md transition-all duration-300 hover:bg-white/10 hover:border-white/60"
             >
               <Phone size={20} />

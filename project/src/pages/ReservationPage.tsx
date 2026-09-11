@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   Home, BedDouble, Users, Calendar, ChevronLeft, ShieldCheck, MessageSquareText,
-  CheckCircle2, CreditCard, Loader2, ArrowRight, Phone, MapPin, UserPlus, Baby, BadgeCheck,
+  CheckCircle2, CreditCard, Loader2, ArrowRight, Phone, MapPin, UserPlus, Baby, BadgeCheck, LogIn,
 } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import JalaliDatePicker, { type BlockedStatus } from '../components/JalaliDatePicker';
 import { hotelInfo } from '../data/hotel';
 import { rooms as staticRooms } from '../data/rooms';
 import { useBooking } from '../context/BookingContext';
+import { useCustomerAuth } from '@/features/customerAuth/CustomerAuthProvider';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   getRooms, createReservation, requestOtp, verifyOtp, attachPhone,
-  requestPayment, manualConfirmPayment, getRoomAvailability, validateDiscountCode, apiError, type Room,
+  createVarizaPayment,
+  getRoomAvailability, validateDiscountCode, apiError, type Room,
 } from '../services/api';
 import { jalaliFriendly, formatToman, faNum, nightsBetween, todayStr, addDaysStr } from '../utils/dates';
 import { toEnDigits, toFaDigits, isValidNationalId, isValidPersianName, isValidEmail } from '../utils/validation';
@@ -83,8 +86,68 @@ function calcStayPrice(room: Room, nights: number, adults: number, _children: nu
 }
 
 export default function ReservationPage() {
-  const { booking, setBooking, resetBooking } = useBooking();
-  const navigate = useNavigate();
+  const { booking, setBooking } = useBooking();
+  const { customer, isInitializing } = useCustomerAuth();
+
+  // پیش‌بارگیری اطلاعات مسافر از حساب تأییدشده (شماره موبایل قبلاً تأیید شده است)
+  useEffect(() => {
+    if (customer) {
+      setBooking({
+        guestName: customer.full_name || booking.guestName,
+        guestEmail: customer.email || booking.guestEmail,
+        phone: customer.mobile || booking.phone,
+        phoneVerified: true,
+      });
+    }
+    // فقط هنگام ورود/خروج کاربر اجرا شود
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customer?.id]);
+
+  // ─────────── درگاه ورود: بدون حساب کاربری امکان رزرو وجود ندارد ───────────
+  if (isInitializing) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background pt-20" dir="rtl">
+        <div className="flex flex-col items-center gap-4 text-forest-600">
+          <Loader2 className="h-10 w-10 animate-spin text-forest-600" />
+          <p className="text-sm text-forest-500">در حال بارگذاری...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="pt-20 min-h-screen flex items-center justify-center section-padding" dir="rtl">
+        <div className="container-x max-w-md">
+          <div className="rounded-2xl bg-white p-8 shadow-xl text-center">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-forest-100">
+              <ShieldCheck className="text-forest-600" size={32} />
+            </div>
+            <h1 className="text-xl font-black text-forest-800 mb-2">برای رزرو ابتدا وارد شوید</h1>
+            <p className="text-sm text-forest-500 mb-6">
+              ثبت رزرو فقط برای اعضای ثبت‌نام‌کرده امکان‌پذیر است. حساب کاربری رایگان است و کد تأیید به موبایل شما پیامک می‌شود.
+            </p>
+            <div className="flex flex-col gap-3">
+              <RouterLink to="/login" state={{ from: '/reserve' }} className="btn-gold w-full">
+                <LogIn size={18} />
+                ورود به حساب
+              </RouterLink>
+              <RouterLink to="/signup" state={{ from: '/reserve' }} className="btn-outline w-full">
+                <UserPlus size={18} />
+                ثبت‌نام (رایگان)
+              </RouterLink>
+            </div>
+            <p className="mt-6 text-sm text-forest-500">
+              <RouterLink to="/" className="font-medium text-forest-600 hover:text-forest-700 transition-colors">
+                بازگشت به صفحه اصلی
+              </RouterLink>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [error, setError] = useState('');
@@ -98,12 +161,11 @@ export default function ReservationPage() {
   const [phoneInput, setPhoneInput] = useState(booking.phone);
   const [otpSession, setOtpSession] = useState<string | null>(null);
   const [otpCode, setOtpCode] = useState('');
-  const [otpDevCode, setOtpDevCode] = useState('');
   const [otpTimer, setOtpTimer] = useState(0);
   const [otpAttemptsLeft, setOtpAttemptsLeft] = useState(3);
 
   // ─────────── payment state ───────────
-  const [payMode, setPayMode] = useState<'gateway' | 'manual' | null>(null);
+  const [redirectingToVariza, setRedirectingToVariza] = useState(false);
 
   // ─────────── discount state ───────────
   const [discountCode, setDiscountCode] = useState('');
@@ -280,7 +342,8 @@ export default function ReservationPage() {
           ...reservation,
           ...(pricing ? { total_price: pricing.totalPrice, price_per_night: pricing.adultPrice } : {}),
         },
-        step: 3,
+        // کاربر واردشده پیش‌تر شماره خود را تأیید کرده است؛ مستقیماً به پرداخت
+        step: booking.phoneVerified ? 4 : 3,
       });
       window.scrollTo(0, 0);
     } catch (err) {
@@ -304,10 +367,6 @@ export default function ReservationPage() {
       setOtpAttemptsLeft(res.maxAttempts);
       setOtpTimer(30);
       setPhoneInput(phone);
-      if (res.devCode) {
-        setOtpDevCode(res.devCode);
-        setOtpCode(res.devCode);
-      }
     } catch (err) {
       setError(apiError(err));
     } finally {
@@ -343,21 +402,20 @@ export default function ReservationPage() {
     }
   };
 
-  const startPayment = async () => {
+  // پرداخت کارت‌به‌کارت (واریزا): ساخت لینک اختصاصی سفارش از Backend و هدایت به آن
+  // تنها روش پرداخت سایت — بدون هیچ مسیر تقلبی/دستی
+  const startVarizaPayment = async () => {
     const reservation = booking.reservation!;
     setBusy(true);
     setError('');
     try {
-      const res = await requestPayment(reservation.id);
-      setPayMode(res.mode ?? null);
-      if (res.mode === 'gateway' && res.paymentURL) {
-        window.location.href = res.paymentURL;
+      const res = await createVarizaPayment(reservation.id);
+      if (res.success && res.payUrl) {
+        setRedirectingToVariza(true);
+        window.location.href = res.payUrl;
         return;
       }
-      // حالت دستی: تایید مستقیم
-      await manualConfirmPayment(reservation.id);
-      resetBooking();
-      navigate(`/payment/result?status=OK&authority=manual&reservationId=${reservation.id}`);
+      setError(res.message || 'ایجاد لینک پرداخت ناموفق بود');
     } catch (err) {
       setError(apiError(err));
     } finally {
@@ -852,11 +910,6 @@ export default function ReservationPage() {
                     {busy ? <Loader2 className="animate-spin" size={18} /> : <MessageSquareText size={18} />}
                     {otpTimer > 0 ? `ارسال مجدد تا ${faNum(otpTimer)} ثانیه دیگر` : 'ارسال کد تأیید'}
                   </button>
-                  {otpDevCode && (
-                    <p className="mt-3 rounded-lg bg-forest-50 px-4 py-2 text-center text-xs text-forest-600">
-                      حالت تستی (بدون API کی): کد پیامک: <b dir="ltr">{faNum(otpDevCode)}</b>
-                    </p>
-                  )}
                 </>
               ) : (
                 <>
@@ -943,16 +996,24 @@ export default function ReservationPage() {
                 </div>
               </div>
 
-              {payMode === 'manual' && (
-                <p className="mt-4 rounded-lg bg-forest-50 px-4 py-2 text-center text-xs text-forest-600">
-                  پرداخت در حالت تستی با موفقیت انجام شد.
-                </p>
+              {redirectingToVariza ? (
+                <div className="mt-6 rounded-xl bg-forest-50 px-4 py-5 text-center">
+                  <Loader2 className="mx-auto animate-spin text-forest-500" size={28} />
+                  <p className="mt-3 text-sm font-bold text-forest-700">در حال انتقال به صفحه پرداخت...</p>
+                  <p className="mt-1 text-xs text-forest-500">پرداخت کارت‌به‌کارت با تأیید خودکار</p>
+                </div>
+              ) : (
+                <>
+                  <button onClick={startVarizaPayment} disabled={busy} className="btn-gold w-full mt-6">
+                    {busy ? <Loader2 className="animate-spin" size={18} /> : <CreditCard size={18} />}
+                    پرداخت کارت‌به‌کارت
+                  </button>
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-forest-400">
+                    مبلغ را واریز کنید؛ تأیید به‌صورت خودکار و آنی انجام می‌شود.
+                  </p>
+                </>
               )}
 
-              <button onClick={startPayment} disabled={busy} className="btn-gold w-full mt-6">
-                {busy ? <Loader2 className="animate-spin" size={18} /> : <CreditCard size={18} />}
-                پرداخت آنلاین
-              </button>
               <button
                 onClick={() => setBooking({ step: 3 })}
                 className="mt-3 w-full text-center text-xs text-forest-500 hover:text-forest-700 underline"
@@ -972,7 +1033,7 @@ export default function ReservationPage() {
               <p className="font-black text-lg mb-1">رزرو تلفنی هم در دسترس است</p>
               <p className="text-sm text-white/70">پذیرش ۲۴ ساعته — پاسخگویی سریع</p>
             </div>
-            <a href={`tel:${hotelInfo.phone}`} className="btn-gold shrink-0">
+            <a href={hotelInfo.phoneLink} className="btn-gold shrink-0">
               <Phone size={18} />
               <span dir="ltr">{hotelInfo.phone}</span>
             </a>

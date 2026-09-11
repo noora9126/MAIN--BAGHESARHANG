@@ -14,6 +14,7 @@ import {
 } from '@/services/adminApi';
 import { jalaliFriendly, formatToman, faNum, formatDateTime, utcDate, jalaliMonthStart, jalaliMonthLength, shiftJalaliMonth, jalaliMonthLabel, isoOfUtc } from '@/utils/dates';
 import { toFaDigits } from '@/utils/validation';
+import JalaliDatePicker from '@/components/JalaliDatePicker';
 
 const STATUS_FILTERS = [
   { value: '', label: 'همه وضعیت‌ها' },
@@ -22,6 +23,8 @@ const STATUS_FILTERS = [
   { value: 'CHECKED_IN', label: 'ورود شده' },
   { value: 'CHECKED_OUT', label: 'خروج شده' },
   { value: 'CANCELLED', label: 'کنسل شده' },
+  { value: 'CANCELLATION_REQUESTED', label: 'درخواست لغو ثبت شده' },
+  { value: 'REFUND_PENDING', label: 'در انتظار بازپرداخت' },
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -287,8 +290,12 @@ export default function ReservationsPage() {
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-            <input type="date" dir="ltr" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={inputCls} title="از تاریخ ورود" />
-            <input type="date" dir="ltr" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={inputCls} title="تا تاریخ ورود" />
+            <div className={inputCls} title="از تاریخ ورود">
+              <JalaliDatePicker value={from} onChange={(iso) => { setFrom(iso); setPage(1); }} placeholder="از تاریخ ورود" />
+            </div>
+            <div className={inputCls} title="تا تاریخ ورود">
+              <JalaliDatePicker value={to} min={from || undefined} onChange={(iso) => { setTo(iso); setPage(1); }} placeholder="تا تاریخ ورود" />
+            </div>
             <button onClick={() => { setSearch(''); setStatus(''); setFrom(''); setTo(''); setPage(1); }} className={btnOutline}>
               <RefreshCw size={15} /> پاک کردن
             </button>
@@ -549,13 +556,15 @@ export default function ReservationsPage() {
                   >
                     <CheckCircle2 size={15} /> تأیید رزرو
                   </button>
-                  <button
-                    onClick={() => setStatusAnd(() => adminCancel(detail.id), 'رزرو کنسل شد')}
-                    disabled={acting}
-                    className={btnDanger}
-                  >
-                    <XCircle size={15} /> کنسل کردن
-                  </button>
+                  {detail.payment_status !== 'SUCCESS' && (
+                    <button
+                      onClick={() => setStatusAnd(() => adminCancel(detail.id), 'رزرو کنسل شد')}
+                      disabled={acting}
+                      className={btnDanger}
+                    >
+                      <XCircle size={15} /> کنسل کردن
+                    </button>
+                  )}
                 </>
               )}
               {detail.status === 'CONFIRMED' && (
@@ -567,13 +576,15 @@ export default function ReservationsPage() {
                   >
                     <LogIn size={15} /> ثبت ورود مهمان
                   </button>
-                  <button
-                    onClick={() => setStatusAnd(() => adminCancel(detail.id), 'رزرو کنسل شد')}
-                    disabled={acting}
-                    className={btnDanger}
-                  >
-                    <Ban size={15} /> کنسل کردن رزرو
-                  </button>
+                  {detail.payment_status !== 'SUCCESS' && (
+                    <button
+                      onClick={() => setStatusAnd(() => adminCancel(detail.id), 'رزرو کنسل شد')}
+                      disabled={acting}
+                      className={btnDanger}
+                    >
+                      <Ban size={15} /> کنسل کردن رزرو
+                    </button>
+                  )}
                 </>
               )}
               {detail.status === 'CHECKED_IN' && (

@@ -24,7 +24,7 @@ async function isRoomAvailable(roomId, checkIn, checkOut, excludeReservationId =
   let sql = `
     SELECT id FROM reservations
     WHERE room_id = ?
-      AND status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
+      AND status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CANCELLATION_REQUESTED', 'REFUND_PENDING')
       AND check_in < ? AND check_out > ?
   `;
   if (excludeReservationId) {
@@ -45,7 +45,7 @@ async function getRoomAvailability(roomId, from, to) {
   await expireStalePending();
   const rows = await query(
     `SELECT check_in, check_out, status FROM reservations
-     WHERE room_id = ? AND status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
+     WHERE room_id = ? AND status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CANCELLATION_REQUESTED', 'REFUND_PENDING')
        AND check_out > ? AND check_in < ?`,
     [roomId, from, to]
   );

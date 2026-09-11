@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /account
+Disallow: /login
+Disallow: /signup
+Disallow: /verify-otp
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /payment/result
+
+Sitemap: https://baghsarhang.ir/sitemap.xml

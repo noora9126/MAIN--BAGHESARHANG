@@ -65,7 +65,7 @@ export interface CalendarBooking {
   room_id: number;
   check_in: string;
   check_out: string;
-  status: 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED';
+  status: 'PENDING' | 'CONFIRMED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED' | 'CANCELLATION_REQUESTED' | 'REFUND_PENDING';
   guest_name: string;
   number_of_adults: number;
   number_of_children: number;
@@ -120,7 +120,7 @@ adminApi.interceptors.response.use(
       if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
         // Only redirect if we're already in admin area
         const isAdminRoot = window.location.pathname === '/admin' || window.location.pathname === '/admin/';
-        if (!isAdminRoot) window.location.href = '/admin/login';
+        if (!isAdminRoot) window.location.href = '/login';
       }
     }
     return Promise.reject(err);
@@ -269,7 +269,6 @@ export interface Settings {
   melipayamak_api_token: string;
   melipayamak_sender: string;
   zarinpal_merchant_id: string;
-  zarinpal_sandbox: string;
 }
 
 export async function adminSettings(): Promise<Settings> {
@@ -279,11 +278,6 @@ export async function adminSettings(): Promise<Settings> {
 
 export async function adminUpdateSettings(body: Partial<Settings>) {
   const { data } = await adminApi.put('/api/admin/settings', body);
-  return data;
-}
-
-export async function adminTestSms(phone: string) {
-  const { data } = await adminApi.post('/api/admin/settings/test-sms', { phone });
   return data;
 }
 
@@ -408,3 +402,129 @@ export async function adminDeleteReview(id: number) {
 }
 
 export { apiError };
+
+// ─────────── مدیریت کاربران (فقط SUPER_ADMIN) ───────────
+export interface AdminUser {
+  id: number;
+  username: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  is_active?: number;
+  last_login?: string | null;
+  created_at: string;
+}
+
+export interface RoleInfo {
+  name: string;
+  label: string;
+  permissions: string[];
+}
+
+export async function adminListUsers(): Promise<AdminUser[]> {
+  const { data } = await adminApi.get('/api/admin/users');
+  return data.users;
+}
+
+export async function adminGetUser(id: number): Promise<AdminUser> {
+  const { data } = await adminApi.get(`/api/admin/users/${id}`);
+  return data.user;
+}
+
+export async function adminCreateUser(body: { username: string; password: string; name?: string; email?: string; role: string }): Promise<AdminUser> {
+  const { data } = await adminApi.post('/api/admin/users', body);
+  return data.user;
+}
+
+export async function adminUpdateUser(id: number, body: { name?: string; email?: string; role?: string; password?: string }): Promise<AdminUser> {
+  const { data } = await adminApi.put(`/api/admin/users/${id}`, body);
+  return data.user;
+}
+
+export async function adminDisableUser(id: number): Promise<void> {
+  await adminApi.post(`/api/admin/users/${id}/disable`);
+}
+
+export async function adminEnableUser(id: number): Promise<void> {
+  await adminApi.post(`/api/admin/users/${id}/enable`);
+}
+
+export async function adminDeleteUser(id: number): Promise<void> {
+  await adminApi.delete(`/api/admin/users/${id}`);
+}
+
+export async function adminGetRoles(): Promise<RoleInfo[]> {
+  const { data } = await adminApi.get('/api/admin/roles');
+  return data.roles;
+}
+
+export async function adminGetMyPermissions(): Promise<{ role: string; permissions: string[] }> {
+  const { data } = await adminApi.get('/api/admin/permissions');
+  return data;
+}
+
+// ─────────── درخواست‌های لغو و بازپرداخت ───────────
+export interface RefundRow {
+  id: number;
+  reservation_id: number;
+  requested_by: number | null;
+  processed_by: number | null;
+  amount: number;
+  refund_card_number: string | null;
+  refund_card_number_masked: string | null;
+  refund_card_holder_name: string | null;
+  status: 'PENDING' | 'APPROVED' | 'PAID' | 'REJECTED' | 'CANCELLED';
+  status_label: string;
+  requested_at: string;
+  processed_at: string | null;
+  admin_note: string | null;
+  rejection_reason: string | null;
+  transaction_ref: string | null;
+  created_at: string;
+  updated_at: string;
+  reservation_number: string;
+  room_name: string;
+  room_number: string | null;
+  guest_name: string;
+  guest_phone: string;
+  guest_email: string;
+  check_in: string;
+  check_out: string;
+  total_price: number;
+  payment_status: string;
+}
+
+export async function adminRefunds(params: { status?: string; search?: string; page?: number; limit?: number } = {}): Promise<{
+  refunds: RefundRow[];
+  total: number;
+  page: number;
+  pages: number;
+}> {
+  const { data } = await adminApi.get('/api/admin/refunds', { params });
+  return data;
+}
+
+export async function adminRefundDetail(id: number): Promise<RefundRow> {
+  const { data } = await adminApi.get(`/api/admin/refunds/${id}`);
+  return data.refund;
+}
+
+export async function adminRefundCardDetails(id: number): Promise<{ refund_card_number: string | null; refund_card_holder_name: string | null }> {
+  const { data } = await adminApi.get(`/api/admin/refunds/${id}/card-details`);
+  return data.cardDetails;
+}
+
+export async function adminProcessRefund(id: number) {
+  const { data } = await adminApi.post(`/api/admin/refunds/${id}/process`);
+  return data;
+}
+
+export async function adminConfirmRefundPayment(id: number, transactionRef?: string) {
+  const { data } = await adminApi.post(`/api/admin/refunds/${id}/confirm-payment`, { transactionRef });
+  return data;
+}
+
+export async function adminRejectRefund(id: number, reason: string) {
+  const { data } = await adminApi.post(`/api/admin/refunds/${id}/reject`, { reason });
+  return data;
+}

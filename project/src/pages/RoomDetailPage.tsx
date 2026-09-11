@@ -1,33 +1,73 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Home, Users, Maximize, Star, Check, Calendar, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Home, Users, Maximize, Star, Check, Calendar, ArrowRight, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import RoomCard from '../components/RoomCard';
 import FaqSection from '../components/home/FaqSection';
-import { getRoomBySlug, formatPrice, rooms } from '../data/rooms';
+import { getRoomBySlug as getApiRoomBySlug, type Room } from '../services/api';
+import { rooms as staticRooms, getRoomBySlug as getStaticRoomBySlug } from '../data/rooms';
+import SEO, { buildRoomSchema } from '../components/SEO';
 
 export default function RoomDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const room = getRoomBySlug(slug || '');
+  const [room, setRoom] = useState<Room | null>(null);
+  const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
+
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
+    setActiveImage(0);
+    getApiRoomBySlug(slug)
+      .then((r) => setRoom(r))
+      .catch(() => {
+        const staticRoom = getStaticRoomBySlug(slug);
+        if (staticRoom) {
+          setRoom(staticRoom as unknown as Room);
+        } else {
+          setRoom(null);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="pt-32 pb-20 text-center">
+        <Loader2 className="mx-auto animate-spin text-forest-500" size={32} />
+        <p className="mt-4 text-forest-500">در حال بارگذاری...</p>
+      </div>
+    );
+  }
 
   if (!room) {
     return (
       <div className="pt-32 pb-20 text-center">
+        <SEO title="اتاق یافت نشد" />
         <p className="text-forest-600 mb-4">اتاق مورد نظر یافت نشد.</p>
         <Link to="/rooms" className="btn-primary">بازگشت به اتاق‌ها</Link>
       </div>
     );
   }
 
-  const relatedRooms = rooms.filter((r) => r.id !== room.id).slice(0, 3);
+  const images = room.images && room.images.length > 0 ? room.images : ['/images/hotel/eghamat-05.jpg'];
+  const roomImages = images;
 
-  const nextImage = () => setActiveImage((prev) => (prev + 1) % room.images.length);
-  const prevImage = () => setActiveImage((prev) => (prev - 1 + room.images.length) % room.images.length);
+  const relatedRooms = (staticRooms as unknown as Room[]).filter((r) => r.slug !== room.slug).slice(0, 3);
+
+  const nextImage = () => setActiveImage((prev) => (prev + 1) % roomImages.length);
+  const prevImage = () => setActiveImage((prev) => (prev - 1 + roomImages.length) % roomImages.length);
 
   return (
     <div className="pt-20">
+      <SEO
+        title={room.name}
+        description={`${room.name} هتل باغ سرهنگ بابل - ظرفیت ${room.capacity} نفر، ${room.area ?? ''}. ${room.description ?? ''}`}
+        canonical={`/rooms/${room.slug}`}
+        ogImage={roomImages[0] || '/images/hotel/eghamat-05.jpg'}
+        schema={buildRoomSchema({ ...room, description: room.description ?? '', price: room.pricePerNight ?? 0, area: room.area ?? '', images: room.images ?? [], slug: room.slug ?? '' })}
+      />
       {/* Breadcrumb */}
       <div className="container-x px-4 sm:px-6 lg:px-8 py-4">
         <nav className="flex items-center gap-2 text-sm text-forest-500">
@@ -48,7 +88,7 @@ export default function RoomDetailPage() {
           {/* Main Image */}
           <div className="lg:col-span-3 relative overflow-hidden rounded-2xl shadow-lg group">
             <img
-              src={room.images[activeImage]}
+              src={roomImages[activeImage]}
               alt={`${room.name} - تصویر ${activeImage + 1}`}
               className="w-full h-64 sm:h-80 lg:h-96 object-cover"
             />
@@ -69,7 +109,7 @@ export default function RoomDetailPage() {
           </div>
           {/* Thumbnails */}
           <div className="flex lg:flex-col gap-3 sm:gap-4">
-            {room.images.map((img, i) => (
+            {roomImages.map((img, i) => (
               <button
                 key={i}
                 onClick={() => setActiveImage(i)}
@@ -94,7 +134,7 @@ export default function RoomDetailPage() {
                 <h1 className="text-2xl sm:text-3xl font-black text-forest-800">{room.name}</h1>
                 <span className="flex items-center gap-1 rounded-full bg-gold-100 px-3 py-1 text-sm font-bold text-gold-700">
                   <Star size={14} className="fill-gold-500 text-gold-500" />
-                  {room.rating.toFixed(1)}
+                  {(room.rating ?? 0).toFixed(1)}
                 </span>
               </div>
 
@@ -102,20 +142,20 @@ export default function RoomDetailPage() {
                 <span className="flex items-center gap-2 rounded-full bg-forest-50 px-4 py-2 text-sm text-forest-700">
                   <Users size={18} className="text-forest-500" />
                   ظرفیت: {room.capacity} نفر
-                  {room.extraCapacity > 0 && ` (+${room.extraCapacity} نفر اضافه)`}
+                  {(room.extraCapacity ?? 0) > 0 && ` (+${room.extraCapacity} نفر اضافه)`}
                 </span>
                 <span className="flex items-center gap-2 rounded-full bg-forest-50 px-4 py-2 text-sm text-forest-700">
                   <Maximize size={18} className="text-forest-500" />
-                  {room.area}
+                  {room.area ?? ''}
                 </span>
               </div>
 
-              <p className="text-forest-600 leading-relaxed mb-8">{room.longDescription}</p>
+              <p className="text-forest-600 leading-relaxed mb-8">{(room as any).longDescription || room.description}</p>
 
               {/* Amenities */}
               <h3 className="text-lg font-bold text-forest-800 mb-4">امکانات اتاق</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {room.amenities.map((amenity, i) => (
+                {(room.amenities ?? []).map((amenity, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-forest-600">
                     <Check size={16} className="text-forest-500" />
                     {amenity}
@@ -130,7 +170,7 @@ export default function RoomDetailPage() {
             <div className="sticky top-24 rounded-2xl bg-white p-6 shadow-xl shadow-forest-900/10">
               <p className="text-sm text-forest-400 mb-1">شروع قیمت از</p>
               <p className="text-3xl font-black text-forest-700 mb-1">
-                {formatPrice(room.price)}
+                {(room.pricePerNight ?? 0).toLocaleString('fa-IR')}
                 <span className="text-base font-normal text-forest-400"> تومان</span>
               </p>
               <p className="text-sm text-forest-400 mb-6">برای هر شب با صبحانه</p>

@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [dash, rev, occ, rooms, guests, res] = await Promise.all([
+      const results = await Promise.allSettled([
         adminDashboard(),
         adminRevenue(undefined, undefined, 'month'),
         adminOccupancy(todayStr(), todayStr()),
@@ -37,12 +37,22 @@ export default function DashboardPage() {
         adminGuestStats(),
         adminReservations({ page: 1, limit: 7 }),
       ]);
-      setOverview(dash);
-      setRevenue(rev);
-      setOccupancy(occ);
-      setRoomPerf(rooms);
-      setGuestStats(guests);
-      setRecent(res.reservations || []);
+
+      const [dashRes, revRes, occRes, roomsRes, guestsRes, resRes] = results;
+
+      if (dashRes.status === 'fulfilled') setOverview(dashRes.value);
+      if (revRes.status === 'fulfilled') setRevenue(revRes.value);
+      if (occRes.status === 'fulfilled') setOccupancy(occRes.value);
+      if (roomsRes.status === 'fulfilled') setRoomPerf(roomsRes.value);
+      if (guestsRes.status === 'fulfilled') setGuestStats(guestsRes.value);
+      if (resRes.status === 'fulfilled') setRecent(resRes.value.reservations || []);
+
+      const failed = results.filter((r) => r.status === 'rejected');
+      if (failed.length > 0 && failed.length === results.length) {
+        toast.error('دریافت داده‌های داشبورد ناموفق بود');
+      } else if (failed.length > 0) {
+        toast.warning('برخی داده‌ها بارگزاری نشدند');
+      }
     } catch {
       toast.error('دریافت داده‌های داشبورد ناموفق بود');
     } finally {

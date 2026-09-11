@@ -140,13 +140,15 @@ function validateReservationInput(req, res, next) {
   next();
 }
 
-// اعتبارسنجی شماره موبایل
+// اعتبارسنجی شماره موبایل (فیلد phone یا mobile)
 function validatePhone(req, res, next) {
-  const phone = (req.body.phone || "").replace(/[\s-]/g, "");
+  const raw = req.body.phone ?? req.body.mobile ?? "";
+  const phone = String(raw).replace(/[\s-]/g, "");
   if (!isValidPhone(phone)) {
     return badRequest(res, "شماره موبایل معتبر وارد کنید (11 رقم، با 09 شروع شود)");
   }
   req.body.phone = phone;
+  if ("mobile" in req.body) req.body.mobile = phone;
   next();
 }
 
@@ -162,4 +164,122 @@ function validateOtpCode(req, res, next) {
   next();
 }
 
-module.exports = { validateReservationInput, validatePhone, validateOtpCode };
+// ─────────────── اعتبارسنجی‌های حساب مشتری ───────────────
+
+const PASSWORD_MIN = 8;
+
+function validatePasswordStrength(password) {
+  return (
+    typeof password === "string" &&
+    password.length >= PASSWORD_MIN &&
+    password.length <= 100 &&
+    /[A-Za-z\u0600-\u06FF]/.test(password) &&
+    /\d/.test(password)
+  );
+}
+
+// ثبت‌نام مشتری: fullName + mobile + password + username
+function validateRegister(req, res, next) {
+  const body = req.body || {};
+
+  const fullName = String(body.fullName || "").trim();
+  if (!isValidPersianName(fullName)) {
+    return badRequest(res, "نام را کامل و معتبر وارد کنید");
+  }
+
+  const mobile = toEnDigits(body.mobile).replace(/[\s-]/g, "");
+  if (!isValidPhone(mobile)) {
+    return badRequest(res, "شماره موبایل معتبر وارد کنید (11 رقم، با 09 شروع شود)");
+  }
+
+  const password = String(body.password || "");
+  if (!validatePasswordStrength(password)) {
+    return badRequest(res, `رمز عبور باید حداقل ${PASSWORD_MIN} کاراکتر و شامل حروف و اعداد باشد`);
+  }
+
+  // نام کاربری: اختیاری ولی اگر وارد شد باید معتبر باشد
+  let username = null;
+  if (body.username) {
+    username = String(body.username).trim().toLowerCase();
+    // فقط حروف لاتین، اعداد، نقطه و خط زیر
+    if (!/^[a-z0-9._]{3,30}$/.test(username)) {
+      return badRequest(res, "نام کاربری باید ۳ تا ۳۰ کاراکتر و شامل حروف لاتین، اعداد، نقطه یا خط زیر باشد");
+    }
+  }
+
+  req.customerBody = { fullName, mobile, password, username };
+  next();
+}
+
+// ورود مشتری: mobile (یا username) + password
+function validateLogin(req, res, next) {
+  const body = req.body || {};
+
+  const mobile = toEnDigits(body.mobile).replace(/[\s-]/g, "");
+  const password = String(body.password || "");
+  if (!password) {
+    return badRequest(res, "رمز عبور را وارد کنید");
+  }
+
+  // اگر mobile شامل 09 باشد، شماره موبایل است وگرنه نام کاربری
+  if (/^09\d{9}$/.test(mobile)) {
+    req.customerBody = { mobile, password };
+  } else {
+    // نام کاربری - بدون ولیدیشن شماره موبایل
+    const username = String(body.mobile || "").trim().toLowerCase();
+    if (!username) {
+      return badRequest(res, "نام کاربری یا شماره موبایل را وارد کنید");
+    }
+    req.customerBody = { mobile: username, password };
+  }
+  next();
+}
+
+// رمز عبور جدید (بازنشانی / تغییر)
+function validateNewPassword(req, res, next) {
+  const password = String((req.body || {}).password || "");
+  if (!validatePasswordStrength(password)) {
+    return badRequest(res, `رمز عبور باید حداقل ${PASSWORD_MIN} کاراکتر و شامل حروف و اعداد باشد`);
+  }
+  req.customerBody = { password };
+  next();
+}
+
+// ویرایش پروفایل مشتری
+function validateProfileUpdate(req, res, next) {
+  const body = req.body || {};
+  const updates = {};
+
+  if (body.fullName !== undefined) {
+    const fullName = String(body.fullName || "").trim();
+    if (!isValidPersianName(fullName)) {
+      return badRequest(res, "نام و نام خانوادگی را کامل و به فارسی وارد کنید");
+    }
+    updates.fullName = fullName;
+  }
+
+  if (body.email !== undefined) {
+    const email = String(body.email || "").trim().toLowerCase();
+    if (email && !isValidEmail(email)) {
+      return badRequest(res, "ایمیل معتبر وارد کنید");
+    }
+    updates.email = email.slice(0, 100);
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return badRequest(res, "موردی برای ویرایش ارسال نشده است");
+  }
+
+  req.profileUpdates = updates;
+  next();
+}
+
+module.exports = {
+  validateReservationInput,
+  validatePhone,
+  validateOtpCode,
+  validateRegister,
+  validateLogin,
+  validateNewPassword,
+  validateProfileUpdate,
+};

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Instagram, Phone, Mail, MapPin, Send } from 'lucide-react';
+import { Instagram, Phone, Mail, MapPin, Send, Headphones } from 'lucide-react';
 import { hotelInfo } from '../data/hotel';
 
 const quickLinks = [
@@ -65,13 +65,13 @@ export default function Footer() {
                 <span>{hotelInfo.address}</span>
               </li>
               <li>
-                <a href={`tel:${hotelInfo.phone}`} className="flex items-center gap-2 hover:text-gold-300 transition-colors">
+                <a href={hotelInfo.phoneLink} className="flex items-center gap-2 hover:text-gold-300 transition-colors">
                   <Phone size={18} className="shrink-0 text-gold-400" />
                   <span dir="ltr">{hotelInfo.phone}</span>
                 </a>
               </li>
               <li>
-                <a href={`tel:${hotelInfo.phone2}`} className="flex items-center gap-2 hover:text-gold-300 transition-colors">
+                <a href={hotelInfo.phone2Link} className="flex items-center gap-2 hover:text-gold-300 transition-colors">
                   <Phone size={18} className="shrink-0 text-gold-400" />
                   <span dir="ltr">{hotelInfo.phone2}</span>
                 </a>
@@ -81,6 +81,20 @@ export default function Footer() {
                   <Mail size={18} className="shrink-0 text-gold-400" />
                   <span dir="ltr">{hotelInfo.email}</span>
                 </a>
+              </li>
+              <li className="mt-3 pt-3 border-t border-forest-800">
+                <div className="flex items-start gap-2">
+                  <Headphones size={18} className="shrink-0 mt-0.5 text-gold-400" />
+                  <div>
+                    <p className="text-xs text-forest-400 mb-1">پشتیبانی فنی</p>
+                    <a href="tel:09102356369" className="text-sm text-forest-300 hover:text-gold-300 transition-colors" dir="ltr">
+                      09102356369
+                    </a>
+                    <p className="text-[11px] text-forest-500 mt-0.5">
+                      در صورت مشکلات فنی در حین رزرو با این شماره در تلگرام پیام دهید
+                    </p>
+                  </div>
+                </div>
               </li>
             </ul>
           </div>
@@ -109,18 +123,34 @@ export default function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="border-t border-forest-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-forest-400">
-            © {new Date().getFullYear()} هتل باغ سرهنگ بابل. تمامی حقوق محفوظ است.
-          </p>
-          <div className="flex items-center gap-4 text-xs text-forest-400">
-            <span>ساعت ورود: {hotelInfo.checkIn}</span>
-            <span>•</span>
-            <span>ساعت خروج: {hotelInfo.checkOut}</span>
+        <div className="border-t border-forest-800 pt-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+            <p className="text-sm text-forest-400">
+              © {new Date().getFullYear()} هتل باغ سرهنگ بابل. تمامی حقوق محفوظ است.
+            </p>
+            <div className="flex items-center gap-4 text-xs text-forest-400">
+              <span>ساعت ورود: {hotelInfo.checkIn}</span>
+              <span>•</span>
+              <span>ساعت خروج: {hotelInfo.checkOut}</span>
+            </div>
           </div>
-          <Link to="/admin" className="text-xs text-forest-600 hover:text-gold-400 transition-colors">
-            ورود مدیریت
-          </Link>
+
+          {/* Enamad Trust Seal */}
+          <div className="flex justify-center mt-4">
+            <a
+              referrerPolicy="origin"
+              target="_blank"
+              href="https://trustseal.enamad.ir/?id=774561&Code=BsNuj2M15TqQw2kQG9MiYT9vkycigi8p"
+              rel="noopener"
+            >
+              <img
+                referrerPolicy="origin"
+                src="https://trustseal.enamad.ir/logo.aspx?id=774561&Code=BsNuj2M15TqQw2kQG9MiYT9vkycigi8p"
+                alt="نماد اعتماد الکترونیکی"
+                style={{ cursor: 'pointer' }}
+              />
+            </a>
+          </div>
         </div>
       </div>
     </footer>

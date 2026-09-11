@@ -7,6 +7,12 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('bsh_customer_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
 export interface Room {
   id: number;
   roomNumber?: string;
@@ -85,6 +91,11 @@ export async function getRooms(): Promise<Room[]> {
 
 export async function getRoom(id: number): Promise<Room> {
   const { data } = await api.get(`/api/rooms/${id}`);
+  return data.room;
+}
+
+export async function getRoomBySlug(slug: string): Promise<Room> {
+  const { data } = await api.get(`/api/rooms/slug/${slug}`);
   return data.room;
 }
 
@@ -198,6 +209,37 @@ export async function verifyPayment(query: {
 
 export async function manualConfirmPayment(reservationId: number) {
   const { data } = await api.post('/api/payments/manual-confirm', { reservationId });
+  return data;
+}
+
+// ─────────── پرداخت کارت‌به‌کارت (واریزا) ───────────
+export async function createVarizaPayment(reservationId: number): Promise<{
+  success: boolean;
+  payUrl?: string;
+  slug?: string;
+  amount?: number;
+  expiresAt?: string | null;
+  reused?: boolean;
+  reservationNumber?: string;
+  message?: string;
+}> {
+  const { data } = await api.post('/api/payments/variza/create', { reservationId });
+  return data;
+}
+
+export type VarizaPaymentStatus = 'pending' | 'paid' | 'failed' | 'expired' | 'cancelled';
+
+export async function getVarizaPaymentStatus(reservationId: number): Promise<{
+  success: boolean;
+  found: boolean;
+  orderPaid: boolean;
+  paymentStatus: VarizaPaymentStatus | null;
+  amount?: number | null;
+  expiresAt?: string | null;
+  paidAt?: string | null;
+  reservationNumber?: string | null;
+}> {
+  const { data } = await api.get('/api/payments/variza/status', { params: { reservationId } });
   return data;
 }
 

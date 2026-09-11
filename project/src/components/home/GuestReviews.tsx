@@ -18,7 +18,7 @@ export default function GuestReviews() {
             <div className="text-right">
               <div className="flex gap-0.5">
                 {[1, 2, 3, 4, 5].map((s) => (
-                  <Star key={s} size={16} className={s <= 4 ? 'text-gold-400 fill-gold-400' : 'text-gray-300'} />
+                  <Star key={s} size={16} className={s <= Math.round(reviewScores.overall / 2) ? 'text-gold-400 fill-gold-400' : 'text-gray-300'} />
                 ))}
               </div>
               <p className="text-xs text-forest-500 mt-1">از ۲۹ نظر واقعی مسافران</p>

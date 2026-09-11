@@ -56,12 +56,13 @@ function isValidNationalId(id) {
   return rem < 2 ? checkDigit === rem : checkDigit === 11 - rem;
 }
 
-// نام فارسی معتبر: حداقل 2 کلمه و فقط حروف فارسی/عربی
+// نام معتبر: اجازه می‌دهد نام‌های واقعی فارسی، عربی یا ترکیبی با فاصله/خط تیره/فاصله‌ها
+// بدون این‌که کاربر مجبور باشد حتماً نام و نام خانوادگی دوکلمه‌ای داشته باشد.
 function isValidPersianName(name) {
-  const str = String(name || "").trim();
-  if (str.length < 3 || str.length > 100) return false;
-  if (!/^[\u0600-\u06FF\s]+$/.test(str)) return false;
-  return str.split(/\s+/).filter(Boolean).length >= 2;
+  const str = String(name || "").trim().replace(/[ـ‌]/g, "");
+  if (str.length < 2 || str.length > 100) return false;
+  if (!/[\p{L}]/u.test(str)) return false;
+  return /^[\p{L}\p{M}\s'\-.]+$/u.test(str);
 }
 
 // نسل شماره رزرو: RES-20241215-001

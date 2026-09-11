@@ -54,7 +54,7 @@ const createReservation = async (req, res) => {
       if (prev[0]) {
         return res.status(409).json({
           success: false,
-          message: `کد ملی «${g.nationalId}» قبلاً با نام «${prev[0].guest_name}» ثبت شده است. در صورت اشتباه، نام را اصلاح کنید.`,
+          message: `نام و کد ملی واردشده با هم مطابقت ندارند. لطفاً اطلاعات را بررسی کنید.`,
         });
       }
     }
@@ -172,7 +172,7 @@ const createReservation = async (req, res) => {
     });
   } catch (err) {
     console.error("createReservation error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 
@@ -279,7 +279,7 @@ const verifyCode = async (req, res) => {
     res.json({ success: true, verified: true, phone: session.phone, message: "شماره تایید شد" });
   } catch (err) {
     console.error("verifyCode error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 
@@ -311,7 +311,7 @@ const attachVerifiedPhone = async (req, res) => {
     res.json({ success: true, message: "شماره روی رزرو ثبت شد" });
   } catch (err) {
     console.error("attachVerifiedPhone error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 
@@ -329,7 +329,7 @@ const getReservation = async (req, res) => {
     res.json({ success: true, reservation: rows[0] });
   } catch (err) {
     console.error("getReservation error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 

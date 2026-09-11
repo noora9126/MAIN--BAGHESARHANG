@@ -11,13 +11,15 @@ const {
 const { validateDiscount } = require("../controllers/discountController");
 const { validateReservationInput, validatePhone, validateOtpCode } = require("../middleware/validate");
 const { otpLimiter } = require("../middleware/rateLimiters");
+const { authCustomer } = require("../middleware/auth");
 
-router.post("/", validateReservationInput, createReservation);
+// رزرو فقط برای مشتریان ثبت‌نام‌کرده و وارد‌شده امکان‌پذیر است
+router.post("/", authCustomer, validateReservationInput, createReservation);
 router.get("/:id", getReservation);
 router.post("/discount/validate", validateDiscount);
 
-router.post("/verify-phone", otpLimiter, validatePhone, verifyPhone);
-router.post("/verify-code", validateOtpCode, verifyCode);
-router.post("/attach-phone", validatePhone, attachVerifiedPhone);
+router.post("/verify-phone", authCustomer, otpLimiter, validatePhone, verifyPhone);
+router.post("/verify-code", authCustomer, validateOtpCode, verifyCode);
+router.post("/attach-phone", authCustomer, validatePhone, attachVerifiedPhone);
 
 module.exports = router;

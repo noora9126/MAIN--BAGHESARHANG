@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Room, Reservation, GuestDetail } from '../services/api';
+import { CUSTOMER_TOKEN_KEY } from '@/services/customerApi';
 
 export interface BookingState {
   step: number;
@@ -35,7 +36,10 @@ const initial: BookingState = {
   phoneVerified: false,
 };
 
-const STORAGE_KEY = 'bsh_booking';
+function getStorageKey(): string {
+  const token = localStorage.getItem(CUSTOMER_TOKEN_KEY);
+  return token ? `bsh_booking_${token}` : 'bsh_booking_guest';
+}
 
 interface BookingContextValue {
   booking: BookingState;
@@ -45,9 +49,9 @@ interface BookingContextValue {
 
 const BookingContext = createContext<BookingContextValue | null>(null);
 
-function load(): BookingState {
+function loadFromStorage(storageKey: string): BookingState {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return initial;
     return { ...initial, ...JSON.parse(raw) };
   } catch {
@@ -56,25 +60,43 @@ function load(): BookingState {
 }
 
 export function BookingProvider({ children }: { children: ReactNode }) {
-  const [booking, setBookingState] = useState<BookingState>(load);
+  const [booking, setBookingState] = useState<BookingState>(() => loadFromStorage(getStorageKey()));
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(booking));
+      localStorage.setItem(getStorageKey(), JSON.stringify(booking));
     } catch {
       // ignore
     }
   }, [booking]);
 
-  const setBooking = (patch: Partial<BookingState>) => {
+  const setBooking = useCallback((patch: Partial<BookingState>) => {
     setBookingState((prev) => ({ ...prev, ...patch }));
-  };
+  }, []);
 
-  const resetBooking = () => {
+  const resetBooking = useCallback(() => {
     setBookingState(initial);
-  };
+    try {
+      localStorage.removeItem(getStorageKey());
+    } catch {
+      // ignore
+    }
+  }, []);
 
   return <BookingContext.Provider value={{ booking, setBooking, resetBooking }}>{children}</BookingContext.Provider>;
+}
+
+export function clearBookingForAllUsers(): void {
+  try {
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.startsWith('bsh_booking_') || key === 'bsh_booking') {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // ignore
+  }
 }
 
 export function useBooking(): BookingContextValue {

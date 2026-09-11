@@ -1,0 +1,5 @@
+{
+  "watch": ["server.js", "src", "database", ".env"],
+  "ext": "js,json",
+  "ignore": ["node_modules", "tests"]
+}

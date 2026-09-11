@@ -32,7 +32,7 @@ const login = async (req, res) => {
     });
   } catch (err) {
     console.error("admin login error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 
@@ -48,7 +48,7 @@ const me = async (req, res) => {
     res.json({ success: true, admin: rows[0] });
   } catch (err) {
     console.error("admin me error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 
@@ -75,7 +75,7 @@ const changePassword = async (req, res) => {
     res.json({ success: true, message: "رمز عبور با موفقیت تغییر کرد" });
   } catch (err) {
     console.error("changePassword error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
+    res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
   }
 };
 

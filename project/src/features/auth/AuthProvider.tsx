@@ -1,11 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { adminLogin, adminMe, clearToken, getToken, setToken, type AdminInfo } from '@/services/adminApi';
+import { adminLogin, adminMe, adminGetMyPermissions, clearToken, getToken, setToken, type AdminInfo } from '@/services/adminApi';
 import { queryClient } from '@/lib/queryClient';
 
 interface AuthContextValue {
   admin: AdminInfo | null;
+  permissions: string[];
   isInitializing: boolean;
+  hasPermission: (permission: string) => boolean;
   login: (username: string, password: string) => Promise<void>;
+  setFromLogin: (token: string, admin: AdminInfo) => void;
   logout: () => void;
 }
 
@@ -13,6 +16,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<AdminInfo | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [isInitializing, setIsInitializing] = useState(() => !!getToken());
 
   useEffect(() => {
@@ -21,9 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     let cancelled = false;
-    adminMe()
-      .then((me) => {
-        if (!cancelled) setAdmin(me);
+    Promise.all([adminMe(), adminGetMyPermissions()])
+      .then(([me, perms]) => {
+        if (!cancelled) {
+          setAdmin(me);
+          setPermissions(perms.permissions || []);
+        }
       })
       .catch((err) => {
         console.error('AuthProvider: Failed to fetch admin:', err.message);
@@ -41,18 +48,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token, admin: loggedIn } = await adminLogin(username, password);
     setToken(token);
     setAdmin(loggedIn);
+    const perms = await adminGetMyPermissions();
+    setPermissions(perms.permissions || []);
+    queryClient.clear();
+  }, []);
+
+  const setFromLogin = useCallback((token: string, adminData: AdminInfo) => {
+    setToken(token);
+    setAdmin(adminData);
+    adminGetMyPermissions().then((perms) => setPermissions(perms.permissions || []));
     queryClient.clear();
   }, []);
 
   const logout = useCallback(() => {
     clearToken();
     setAdmin(null);
+    setPermissions([]);
     queryClient.clear();
   }, []);
 
+  const hasPermission = useCallback(
+    (permission: string) => permissions.includes(permission),
+    [permissions]
+  );
+
   const value = useMemo(
-    () => ({ admin, isInitializing, login, logout }),
-    [admin, isInitializing, login, logout]
+    () => ({ admin, permissions, isInitializing, hasPermission, login, setFromLogin, logout }),
+    [admin, permissions, isInitializing, hasPermission, login, setFromLogin, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

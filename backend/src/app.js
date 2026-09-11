@@ -1,11 +1,14 @@
 const express = require("express");
 const cors = require("cors");
-require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
 
 const roomRoutes = require("./routes/roomRoutes");
 const reservationRoutes = require("./routes/reservationRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const authRoutes = require("./routes/authRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const customerRoutes = require("./routes/customerRoutes");
+const userManagementRoutes = require("./routes/userManagementRoutes");
 
 const app = express();
 
@@ -21,7 +24,12 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({
+  // نگهداری RAW BODY برای اعتبارسنجی امضای HMAC-SHA256 وب‌هوک واریزا
+  verify: (req, res, buf) => {
+    req.rawBody = Buffer.from(buf);
+  },
+}));
 
 app.get("/", (req, res) => {
   res.json({ success: true, name: "هتل باغ سرهنگ API", version: "2.0" });
@@ -30,7 +38,10 @@ app.get("/", (req, res) => {
 app.use("/api/rooms", roomRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin", userManagementRoutes);
+app.use("/api/customer", customerRoutes);
 
 // مدیریت خطاهای عمومی
 app.use((req, res) => {
@@ -38,8 +49,13 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  // خطاهای parser (مثل JSON خراب) کد وضعیت مشخص دارند
+  const code = Number(err?.statusCode || err?.status || 0);
+  if (code >= 400 && code < 500) {
+    return res.status(code).json({ success: false, message: "درخواست نامعتبر است" });
+  }
   console.error("Unhandled error:", err);
-  res.status(500).json({ success: false, message: "خطای سرور" });
+  res.status(500).json({ success: false, message: "متأسفانه مشکلی پیش آمد؛ لطفاً دوباره تلاش کنید" });
 });
 
 module.exports = app;

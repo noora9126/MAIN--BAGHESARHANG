@@ -2,12 +2,17 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import ScrollReveal from '../ScrollReveal';
 import { faqs } from '../../data/hotel';
+import { buildFAQSchema } from '../SEO';
+import { Helmet } from 'react-helmet-async';
 
 export default function FaqSection() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
     <section className="section-padding">
+      <Helmet>
+        <script type="application/ld+json">{JSON.stringify(buildFAQSchema(faqs))}</script>
+      </Helmet>
       <div className="container-x">
         <ScrollReveal className="text-center mb-12">
           <span className="inline-block rounded-full bg-forest-100 px-4 py-1.5 text-sm font-medium text-forest-600 mb-3">

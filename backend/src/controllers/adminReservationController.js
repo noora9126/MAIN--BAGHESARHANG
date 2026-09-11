@@ -5,7 +5,7 @@ const { createNotification } = require("../services/notificationService");
 const { decrementDiscountUsage } = require("../services/discountService");
 const { dateOnlyString } = require("../utils/helpers");
 
-const VALID_STATUSES = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED"];
+const VALID_STATUSES = ["PENDING", "CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "CANCELLATION_REQUESTED", "REFUND_PENDING"];
 
 // ─────────────── داده تقویم اشغال ───────────────
 // برای نمایش ماتریس «اتاق × روز» و خلاصه روزانه (کدام روزها خالی/پر هستند)
@@ -25,7 +25,7 @@ const getCalenderData = async (req, res) => {
     const bookingRows = await query(
       `SELECT id, reservation_number, room_id, check_in, check_out, status, guest_name, number_of_adults, number_of_children, payment_status
        FROM reservations
-       WHERE status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN')
+       WHERE status IN ('PENDING', 'CONFIRMED', 'CHECKED_IN', 'CANCELLATION_REQUESTED', 'REFUND_PENDING')
          AND check_out > ? AND check_in < ?
        ORDER BY check_in`,
       [from, to]
@@ -255,7 +255,7 @@ const checkOut = async (req, res) => {
   }
 };
 
-// ─────────────── کنسل کردن ───────────────
+// ─────────────── کنسل کردن (فقط رزروهای پرداخت‌نشده) ───────────────
 const cancelReservation = async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -264,6 +264,18 @@ const cancelReservation = async (req, res) => {
       return res.status(404).json({ success: false, message: "رزرو یافت نشد" });
     }
     const reservation = rows[0];
+
+    if (reservation.status === "CANCELLED") {
+      return res.status(400).json({ success: false, message: "این رزرو قبلاً لغو شده است" });
+    }
+
+    if (reservation.payment_status === "SUCCESS") {
+      return res.status(400).json({ success: false, message: "رزروهای پرداخت شده باید از طریق فرآیند بازپرداخت لغو شوند" });
+    }
+
+    if (reservation.status === "CHECKED_IN" || reservation.status === "CHECKED_OUT") {
+      return res.status(400).json({ success: false, message: "امکان لغو رزرو در این مرحله وجود ندارد" });
+    }
 
     await query(`UPDATE reservations SET status = 'CANCELLED', updated_at = NOW() WHERE id = ?`, [id]);
 

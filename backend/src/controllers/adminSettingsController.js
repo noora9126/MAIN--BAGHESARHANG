@@ -18,7 +18,6 @@ const DEFAULT_SETTINGS = {
   melipayamak_api_token: "",
   melipayamak_sender: "",
   zarinpal_merchant_id: "",
-  zarinpal_sandbox: "1",
 };
 
 // ─────────────── دریافت تنظیمات ───────────────
@@ -59,26 +58,6 @@ const updateSettings = async (req, res) => {
     res.json({ success: true, message: "تنظیمات ذخیره شد" });
   } catch (err) {
     console.error("updateSettings error:", err);
-    res.status(500).json({ success: false, message: "خطای سرور" });
-  }
-};
-
-// ─────────────── پیامک تست ───────────────
-const testSms = async (req, res) => {
-  try {
-    const phone = String(req.body.phone || "").trim();
-    if (!/^09\d{9}$/.test(phone)) {
-      return res.status(400).json({ success: false, message: "شماره موبایل معتبر وارد کنید" });
-    }
-    const message = "این یک پیامک تست از هتل باغ سرهنگ است. ✅";
-    const result = await sendSms(phone, message, { type: "TEST" });
-    res.json({
-      success: result.success,
-      message: result.success ? "پیامک تست ارسال شد" : "ارسال پیامک ناموفق بود",
-      simulated: Boolean(result.simulated),
-    });
-  } catch (err) {
-    console.error("testSms error:", err);
     res.status(500).json({ success: false, message: "خطای سرور" });
   }
 };
@@ -255,4 +234,4 @@ const createRoom = async (req, res) => {
   }
 };
 
-module.exports = { getSettings, updateSettings, testSms, listRooms, updateRoom, createRoom };
+module.exports = { getSettings, updateSettings, listRooms, updateRoom, createRoom };

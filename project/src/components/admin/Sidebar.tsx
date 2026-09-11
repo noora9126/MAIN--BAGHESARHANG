@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { LogOut, TreePine } from 'lucide-react';
-import { adminNavItems } from '@/features/admin/nav';
+import { adminNavItems, filterNavByPermissions } from '@/features/admin/nav';
 import { useAuth } from '@/features/auth/AuthProvider';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onNavigate }: SidebarProps) {
-  const { admin, logout } = useAuth();
+  const { admin, permissions, logout } = useAuth();
+  const visibleItems = filterNavByPermissions(adminNavItems, permissions);
 
   return (
     <div className="flex h-full flex-col bg-sidebar">
@@ -26,7 +27,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {adminNavItems.map((item) => (
+        {visibleItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
